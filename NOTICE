@@ -1,0 +1,13 @@
+
+The macOS GPUIOverlayView event-registration pattern and deferred scene-plane
+architecture in this change were adapted from the Apache-2.0 GPUI crates in
+https://github.com/egoist/zed at 57bd4fe181639797d395978d5de17bc9e10a6219.
+The overlay input policy, Metal integration and lifecycle adaptations are Zeron
+changes.
+
+Zkit maintains a source snapshot of the Apache-2.0 GPUI platform crates.
+Initial platform snapshot: https://github.com/zeronsh/zui at 361ff20b919fdfb80199ee6d9aed725300cb7d54.
+The component-base crate is adapted from https://github.com/zeronsh/gpui-component at 701ca97af7983bf85343d2d1d404ab528b18ec96.
+Copyright 2024 - 2026 Longbridge <https://longbridge.com>.
+See crates/component-base/LICENSE for its Apache-2.0 notice.
+Font copyright and licenses are retained under assets/fonts/zkit/licenses.
