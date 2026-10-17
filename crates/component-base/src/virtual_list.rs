@@ -287,7 +287,7 @@ impl VirtualList {
                 }
             }
             _ => {
-// Source lineage is retained in the repository NOTICE.
+                // Source lineage is retained in the repository NOTICE.
                 if self.axis.is_vertical() {
                     if bounds.top() + scroll_offset.y < content_bounds.top() {
                         scroll_offset.y = content_bounds.top() - bounds.top()
@@ -307,7 +307,7 @@ impl VirtualList {
         scroll_offset
     }
 
-// Source lineage is retained in the repository NOTICE.
+    // Source lineage is retained in the repository NOTICE.
     fn measure_item(
         &self,
         list_width: Option<Pixels>,

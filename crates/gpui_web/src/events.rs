@@ -3,8 +3,8 @@ use std::rc::Rc;
 use gpui::{
     Capslock, DispatchEventResult, ExternalPaths, FileDropEvent, KeyDownEvent, KeyUpEvent,
     Keystroke, Modifiers, ModifiersChangedEvent, MouseButton, MouseDownEvent, MouseExitEvent,
-    MouseMoveEvent, MouseUpEvent, NavigationDirection, Pixels, PlatformInput, Point, ScrollDelta,
-    ScrollWheelEvent, TouchPhase, point, px,
+    MouseMoveEvent, MouseUpEvent, NavigationDirection, Pixels, PlatformInput, Point,
+    RequestFrameOptions, ScrollDelta, ScrollWheelEvent, TouchPhase, point, px,
 };
 use smallvec::smallvec;
 use wasm_bindgen::prelude::*;
@@ -64,6 +64,7 @@ impl WebWindowInner {
             self.register_dragleave(),
             self.register_key_down(),
             self.register_key_up(),
+            self.register_before_input(),
             self.register_paste(),
             self.register_composition_start(),
             self.register_composition_update(),
@@ -128,6 +129,19 @@ impl WebWindowInner {
     fn dispatch_input(&self, input: PlatformInput) -> Option<DispatchEventResult> {
         let mut borrowed = self.callbacks.borrow_mut();
         borrowed.input.as_mut().map(|callback| callback(input))
+    }
+
+    fn ensure_input_handler(&self) {
+        if self.state.borrow().input_handler.is_none() {
+            // Focus changes install their text handler during paint. A text
+            // event may arrive before the next animation frame after a click.
+            if let Some(callback) = self.callbacks.borrow_mut().request_frame.as_mut() {
+                callback(RequestFrameOptions {
+                    require_presentation: true,
+                    force_render: false,
+                });
+            }
+        }
     }
 
     fn register_pointer_down(self: &Rc<Self>) -> Closure<dyn FnMut(JsValue)> {
@@ -381,6 +395,7 @@ impl WebWindowInner {
 
             if modifiers.is_subset_of(&Modifiers::shift()) {
                 if let Some(text) = key_char {
+                    this.ensure_input_handler();
                     this.with_input_handler(|handler| {
                         handler.replace_text_in_range(None, &text);
                     });
@@ -390,6 +405,35 @@ impl WebWindowInner {
                     // through so browser shortcuts keep their defaults.
                     event.prevent_default();
                 }
+            }
+        })
+    }
+
+    /// Text insertion can arrive without a keydown (dictation, virtual keyboards,
+    /// accessibility input and browser automation). Physical keystrokes already
+    /// prevent their default insertion; only unhandled input reaches this path.
+    fn register_before_input(self: &Rc<Self>) -> Closure<dyn FnMut(JsValue)> {
+        let this = Rc::clone(self);
+        self.listen_input("beforeinput", move |event: JsValue| {
+            let event: web_sys::InputEvent = event.unchecked_into();
+            if this.is_composing.get() || event.is_composing() {
+                return;
+            }
+            match event.input_type().as_str() {
+                "insertText" | "insertReplacementText" => {
+                    if let Some(text) = event.data() {
+                        this.ensure_input_handler();
+                        if this
+                            .with_input_handler(|handler| {
+                                handler.replace_text_in_range(None, &text);
+                            })
+                            .is_some()
+                        {
+                            event.prevent_default();
+                        }
+                    }
+                }
+                _ => {}
             }
         })
     }
