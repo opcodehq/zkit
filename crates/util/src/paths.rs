@@ -331,16 +331,16 @@ impl Display for SanitizedPath {
 }
 
 impl From<&SanitizedPath> for Arc<SanitizedPath> {
-    fn from(sanitizkit_path: &SanitizedPath) -> Self {
-        let path: Arc<Path> = sanitizkit_path.0.into();
+    fn from(sanitized_path: &SanitizedPath) -> Self {
+        let path: Arc<Path> = sanitized_path.0.into();
         // safe because `Path` and `SanitizedPath` have the same repr and Drop impl
         unsafe { mem::transmute(path) }
     }
 }
 
 impl From<&SanitizedPath> for PathBuf {
-    fn from(sanitizkit_path: &SanitizedPath) -> Self {
-        sanitizkit_path.as_path().into()
+    fn from(sanitized_path: &SanitizedPath) -> Self {
+        sanitized_path.as_path().into()
     }
 }
 
@@ -2655,18 +2655,18 @@ mod tests {
     // }
     #[perf]
     #[cfg(target_os = "windows")]
-    fn test_sanitizkit_path() {
+    fn test_sanitized_path() {
         let path = Path::new("C:\\Users\\someone\\test_file.rs");
-        let sanitizkit_path = SanitizedPath::new(path);
+        let sanitized_path = SanitizedPath::new(path);
         assert_eq!(
-            sanitizkit_path.to_string(),
+            sanitized_path.to_string(),
             "C:\\Users\\someone\\test_file.rs"
         );
 
         let path = Path::new("\\\\?\\C:\\Users\\someone\\test_file.rs");
-        let sanitizkit_path = SanitizedPath::new(path);
+        let sanitized_path = SanitizedPath::new(path);
         assert_eq!(
-            sanitizkit_path.to_string(),
+            sanitized_path.to_string(),
             "C:\\Users\\someone\\test_file.rs"
         );
     }

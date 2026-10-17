@@ -164,7 +164,7 @@ mod tests {
     }
 
     #[test]
-    fn oversizkit_kernel_preserves_shader_fallback() {
+    fn oversized_kernel_preserves_shader_fallback() {
         assert_eq!(gaussian_weights(100.0), [[0.0; 4]; KERNEL_VECTORS]);
     }
 

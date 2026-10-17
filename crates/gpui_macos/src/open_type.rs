@@ -109,7 +109,7 @@ fn generate_fallback_array(fallbacks: &FontFallbacks, font: &mut FontKitFont) ->
             let name = CFString::from(user_fallback.as_str());
 
             let traits_keys = [kCTFontWeightTrait, kCTFontSlantTrait];
-            let weight_value = CFNumber::from(all_traits.normalizkit_weight());
+            let weight_value = CFNumber::from(all_traits.normalized_weight());
             let slant_value = CFNumber::from(if (symbolic_traits & kCTFontItalicTrait) != 0 {
                 1.0
             } else {

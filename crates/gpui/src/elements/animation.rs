@@ -281,9 +281,9 @@ mod easing {
             let breath = (t * t * t + t) / 2.0;
 
             // Map the breath to our desired alpha range
-            let normalizkit_alpha = (breath + 1.0) / 2.0;
+            let normalized_alpha = (breath + 1.0) / 2.0;
 
-            min + (normalizkit_alpha * range)
+            min + (normalized_alpha * range)
         }
     }
 }

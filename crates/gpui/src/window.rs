@@ -4363,17 +4363,17 @@ impl Window {
         let scale_factor = self.scale_factor();
         let glyph_origin = origin.scale(scale_factor);
 
-        let quantizkit_origin = Point::new(
+        let quantized_origin = Point::new(
             round_half_toward_zero(glyph_origin.x.0 * SUBPIXEL_VARIANTS_X as f32)
                 / SUBPIXEL_VARIANTS_X as f32,
             round_half_toward_zero(glyph_origin.y.0 * SUBPIXEL_VARIANTS_Y as f32)
                 / SUBPIXEL_VARIANTS_Y as f32,
         );
         let subpixel_variant = Point::new(
-            (quantizkit_origin.x.fract() * SUBPIXEL_VARIANTS_X as f32) as u8,
-            (quantizkit_origin.y.fract() * SUBPIXEL_VARIANTS_Y as f32) as u8,
+            (quantized_origin.x.fract() * SUBPIXEL_VARIANTS_X as f32) as u8,
+            (quantized_origin.y.fract() * SUBPIXEL_VARIANTS_Y as f32) as u8,
         );
-        let integer_origin = quantizkit_origin.map(|c| ScaledPixels(c.trunc()));
+        let integer_origin = quantized_origin.map(|c| ScaledPixels(c.trunc()));
         let subpixel_rendering = self.should_use_subpixel_rendering(font_id, font_size);
         let dilation = self.text_system().glyph_dilation_for_color(color);
         let params = RenderGlyphParams {
@@ -4479,17 +4479,17 @@ impl Window {
         let scale_factor = self.scale_factor();
         let glyph_origin = origin.scale(scale_factor);
 
-        let quantizkit_origin = Point::new(
+        let quantized_origin = Point::new(
             round_half_toward_zero(glyph_origin.x.0 * SUBPIXEL_VARIANTS_X as f32)
                 / SUBPIXEL_VARIANTS_X as f32,
             round_half_toward_zero(glyph_origin.y.0 * SUBPIXEL_VARIANTS_Y as f32)
                 / SUBPIXEL_VARIANTS_Y as f32,
         );
         let subpixel_variant = Point::new(
-            (quantizkit_origin.x.fract() * SUBPIXEL_VARIANTS_X as f32) as u8,
-            (quantizkit_origin.y.fract() * SUBPIXEL_VARIANTS_Y as f32) as u8,
+            (quantized_origin.x.fract() * SUBPIXEL_VARIANTS_X as f32) as u8,
+            (quantized_origin.y.fract() * SUBPIXEL_VARIANTS_Y as f32) as u8,
         );
-        let integer_origin = quantizkit_origin.map(|c| ScaledPixels(c.trunc()));
+        let integer_origin = quantized_origin.map(|c| ScaledPixels(c.trunc()));
         let dilation = self.text_system().glyph_dilation_for_color(color);
         let params = RenderGlyphParams {
             font_id,
@@ -7045,7 +7045,7 @@ mod tests {
     }
 
     #[test]
-    fn auto_sizkit_window_root_fills_the_window() {
+    fn auto_sized_window_root_fills_the_window() {
         let mut cx = TestAppContext::single();
         let child_bounds = Rc::new(Cell::new(Bounds::default()));
         let window = cx.add_window({
@@ -7067,7 +7067,7 @@ mod tests {
     }
 
     #[test]
-    fn explicitly_sizkit_window_root_keeps_its_size() {
+    fn explicitly_sized_window_root_keeps_its_size() {
         let mut cx = TestAppContext::single();
         let child_bounds = Rc::new(Cell::new(Bounds::default()));
         let window = cx.add_window({

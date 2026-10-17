@@ -273,8 +273,8 @@ pub struct X11WindowState {
     input_handler: Option<PlatformInputHandler>,
     appearance: WindowAppearance,
     background_appearance: WindowBackgroundAppearance,
-    maximizkit_vertical: bool,
-    maximizkit_horizontal: bool,
+    maximized_vertical: bool,
+    maximized_horizontal: bool,
     hidden: bool,
     active: bool,
     hovered: bool,
@@ -797,8 +797,8 @@ impl X11WindowState {
                 hovered: false,
                 force_render_after_recovery: false,
                 fullscreen: false,
-                maximizkit_vertical: false,
-                maximizkit_horizontal: false,
+                maximized_vertical: false,
+                maximized_horizontal: false,
                 hidden: false,
                 appearance,
                 handle,
@@ -1082,8 +1082,8 @@ impl X11WindowStatePtr {
 
         state.active = false;
         state.fullscreen = false;
-        state.maximizkit_vertical = false;
-        state.maximizkit_horizontal = false;
+        state.maximized_vertical = false;
+        state.maximized_horizontal = false;
         state.hidden = false;
 
         for atom in atoms {
@@ -1092,9 +1092,9 @@ impl X11WindowStatePtr {
             } else if atom == state.atoms._NET_WM_STATE_FULLSCREEN {
                 state.fullscreen = true;
             } else if atom == state.atoms._NET_WM_STATE_MAXIMIZKIT_VERT {
-                state.maximizkit_vertical = true;
+                state.maximized_vertical = true;
             } else if atom == state.atoms._NET_WM_STATE_MAXIMIZKIT_HORZ {
-                state.maximizkit_horizontal = true;
+                state.maximized_horizontal = true;
             } else if atom == state.atoms._NET_WM_STATE_HIDDEN {
                 state.hidden = true;
             }
@@ -1330,7 +1330,7 @@ impl PlatformWindow for X11Window {
         let state = self.0.state.borrow();
 
         // A maximized window that gets minimized will still retain its maximized state.
-        !state.hidden && state.maximizkit_vertical && state.maximizkit_horizontal
+        !state.hidden && state.maximized_vertical && state.maximized_horizontal
     }
 
     fn window_bounds(&self) -> WindowBounds {
@@ -1799,10 +1799,10 @@ impl PlatformWindow for X11Window {
                 } else {
                     // https://source.chromium.org/chromium/chromium/src/+/main:ui/ozone/platform/x11/x11_window.cc;l=2519;drc=1f14cc876cc5bf899d13284a12c451498219bb2d
                     Tiling {
-                        top: state.maximizkit_vertical,
-                        bottom: state.maximizkit_vertical,
-                        left: state.maximizkit_horizontal,
-                        right: state.maximizkit_horizontal,
+                        top: state.maximized_vertical,
+                        bottom: state.maximized_vertical,
+                        left: state.maximized_horizontal,
+                        right: state.maximized_horizontal,
                     }
                 };
                 Decorations::Client { tiling }
@@ -1825,12 +1825,12 @@ impl PlatformWindow for X11Window {
 
             [left, right, top, bottom]
         } else {
-            let (left, right) = if state.maximizkit_horizontal {
+            let (left, right) = if state.maximized_horizontal {
                 (0, 0)
             } else {
                 (dp, dp)
             };
-            let (top, bottom) = if state.maximizkit_vertical {
+            let (top, bottom) = if state.maximized_vertical {
                 (0, 0)
             } else {
                 (dp, dp)
