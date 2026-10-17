@@ -9134,6 +9134,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "zkit-components"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "gpui",
+ "gpui-base",
+ "gpui_platform",
+ "serde",
+ "smallvec",
+ "wasm-bindgen",
+ "web-time",
+]
+
+[[package]]
 name = "zlib-rs"
 version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"

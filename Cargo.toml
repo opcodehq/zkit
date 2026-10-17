@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/component-base",
+    "crates/components",
     "crates/collections",
     "crates/gpui",
     "crates/gpui_linux",

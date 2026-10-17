@@ -11,3 +11,10 @@ The component-base crate is adapted from https://github.com/zeronsh/gpui-compone
 Copyright 2024 - 2026 Longbridge <https://longbridge.com>.
 See crates/component-base/LICENSE for its Apache-2.0 notice.
 Font copyright and licenses are retained under assets/fonts/zkit/licenses.
+
+The styled component layer adapts neutral/accent colors, OKLCH conversions,
+motion curves, loader clock/phase calculations and surface primitives from
+https://github.com/zeronsh/zeron at 3b2f78027a2c31622c39c35716da4d6e1af8de15.
+Copyright (c) 2026 Wing. The MIT license and copyright notice are retained in
+crates/components/LICENSE-MIT-SOURCE. Focus traversal also adapts the Apache-2.0
+component source snapshot identified above.

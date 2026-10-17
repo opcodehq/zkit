@@ -1,0 +1,36 @@
+[package]
+name = "zkit-components"
+description = "Styled, accessible developer-tool components for Zkit applications."
+version = "0.1.0"
+license = "Apache-2.0"
+publish = false
+edition.workspace = true
+
+[lib]
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+gpui.workspace = true
+gpui-base = { path = "../component-base" }
+serde.workspace = true
+smallvec.workspace = true
+web-time.workspace = true
+
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
+
+[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
+env_logger.workspace = true
+gpui_platform = { workspace = true, features = ["font-kit", "wayland", "x11"] }
+
+[target.'cfg(target_family = "wasm")'.dev-dependencies]
+gpui_platform.workspace = true
+wasm-bindgen.workspace = true
+
+[[example]]
+name = "gallery"
+path = "examples/gallery.rs"
+
+[lints]
+workspace = true
