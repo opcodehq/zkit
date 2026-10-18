@@ -368,13 +368,43 @@ impl Platform for WebPlatform {
     }
 
     fn write_to_clipboard(&self, item: ClipboardItem) {
-        if let Some(text) = item.text()
-            && let Some(window) = web_sys::window()
-        {
-            // Fire-and-forget; called synchronously inside the user's input
-            // event, which satisfies the browser's user-activation requirement.
-            drop(window.navigator().clipboard().write_text(&text));
-        }
+        let request = self.write_to_clipboard_async(item);
+        self.foreground_executor
+            .spawn(async move {
+                if request.await.is_err() {
+                    log::warn!("Clipboard text could not be written");
+                }
+            })
+            .detach();
+    }
+
+    fn write_to_clipboard_async(&self, item: ClipboardItem) -> Task<Result<()>> {
+        let Some(text) = item.text() else {
+            return Task::ready(Err(anyhow::anyhow!("Clipboard text is unavailable")));
+        };
+        // Invoke during the gesture and catch absent APIs and synchronous throws.
+        let request = (|| {
+            let clipboard = js_sys::Reflect::get(
+                self.browser_window.navigator().as_ref(),
+                &"clipboard".into(),
+            )?;
+            let write = js_sys::Reflect::get(&clipboard, &"writeText".into())?
+                .dyn_into::<js_sys::Function>()?;
+            write
+                .call1(&clipboard, &text.into())?
+                .dyn_into::<js_sys::Promise>()
+        })();
+        let Ok(request) = request else {
+            return Task::ready(Err(anyhow::anyhow!("Clipboard text is unavailable")));
+        };
+        // Install the rejection handler immediately, even if the caller retires its task.
+        let request = wasm_bindgen_futures::JsFuture::from(request);
+        self.foreground_executor.spawn(async move {
+            request
+                .await
+                .map(|_| ())
+                .map_err(|_| anyhow::anyhow!("Clipboard text could not be written"))
+        })
     }
 
     fn write_credentials(&self, _url: &str, _username: &str, _password: &[u8]) -> Task<Result<()>> {

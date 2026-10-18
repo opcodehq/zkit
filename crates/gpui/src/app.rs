@@ -1356,6 +1356,11 @@ impl App {
         self.platform.write_to_clipboard(item)
     }
 
+    /// Writes clipboard data and reports completion on asynchronous platforms.
+    pub fn write_to_clipboard_async(&self, item: ClipboardItem) -> Task<Result<()>> {
+        self.platform.write_to_clipboard_async(item)
+    }
+
     /// Reads data from the primary selection buffer.
     /// Only available on Linux.
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]

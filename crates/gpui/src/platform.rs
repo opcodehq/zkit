@@ -303,6 +303,12 @@ pub trait Platform: 'static {
         Task::ready(Ok(self.read_from_clipboard()))
     }
     fn write_to_clipboard(&self, item: ClipboardItem);
+    /// Write clipboard data and observe completion before performing a destructive cut.
+    /// Initiate this while handling the user's copy or cut gesture.
+    fn write_to_clipboard_async(&self, item: ClipboardItem) -> Task<Result<()>> {
+        self.write_to_clipboard(item);
+        Task::ready(Ok(()))
+    }
 
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     fn read_from_primary(&self) -> Option<ClipboardItem>;

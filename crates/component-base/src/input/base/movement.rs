@@ -45,7 +45,7 @@ impl<M: InputModeKind> InputBaseState<M> {
         direction: Option<MoveDirection>,
         cx: &mut Context<Self>,
     ) {
-        self.invalidate_pending_paste();
+        self.invalidate_pending_clipboard();
         self.undo_manager.break_transaction_coalescing();
         let offset = offset.clamp(0, self.text.len());
         self.cursor_line_end_affinity = false;

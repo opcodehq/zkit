@@ -112,11 +112,17 @@ actions!(
 #[derive(Clone)]
 pub enum InputEvent {
     Change,
-    PressEnter { secondary: bool, shift: bool },
+    PressEnter {
+        secondary: bool,
+        shift: bool,
+    },
     Focus,
     Blur,
     /// A user-initiated paste could not access the platform clipboard.
     ClipboardReadFailed,
+    /// A copy or cut could not write the platform clipboard. Cut preserves the selection.
+    ClipboardWriteFailed,
+    ClipboardWriteSucceeded,
 }
 
 pub(super) const CONTEXT: &str = "Input";
@@ -304,8 +310,9 @@ pub struct InputBaseState<M: InputModeKind> {
     pub(super) text: Rope,
     pub(super) display_map: DisplayMap,
     pub(super) undo_manager: UndoManager,
-    paste_revision: u64,
+    clipboard_revision: u64,
     _paste_task: Option<gpui::Task<()>>,
+    _clipboard_write_task: Option<gpui::Task<()>>,
     pub(super) search_session: super::SearchSession,
     pub(super) searchable: bool,
     pub(super) replaceable: bool,
@@ -594,7 +601,7 @@ impl<M: InputModeKind> InputBaseState<M> {
             // Blink the cursor when the window is active, pause when it's not.
             cx.observe_window_activation(window, |input, window, cx| {
                 if !window.is_window_active() {
-                    input.invalidate_pending_paste();
+                    input.invalidate_pending_clipboard();
                 }
                 if window.is_window_active() {
                     let focus_handle = input.focus_handle.clone();
@@ -625,8 +632,9 @@ impl<M: InputModeKind> InputBaseState<M> {
             cursor_surrounding_lines: None,
             blink_cursor,
             undo_manager,
-            paste_revision: 0,
+            clipboard_revision: 0,
             _paste_task: None,
+            _clipboard_write_task: None,
             selected_range: Selection::default(),
             selected_word_range: None,
             selection_reversed: false,
@@ -932,7 +940,7 @@ impl<M: InputModeKind> InputBaseState<M> {
     }
 
     fn reset_selection(&mut self) {
-        self.invalidate_pending_paste();
+        self.invalidate_pending_clipboard();
         // For single-line inputs the caret is placed at the end of the text
         // (matching HTML `<input>`); multi-line inputs reset the selection to
         // `0..0`.
@@ -976,7 +984,7 @@ impl<M: InputModeKind> InputBaseState<M> {
         }
 
         self.disabled = disabled;
-        self.invalidate_pending_paste();
+        self.invalidate_pending_clipboard();
         cx.notify();
     }
 
@@ -990,7 +998,7 @@ impl<M: InputModeKind> InputBaseState<M> {
     #[allow(unused)]
     pub(crate) fn readonly(mut self, readonly: bool) -> Self {
         self.readonly = readonly;
-        self.invalidate_pending_paste();
+        self.invalidate_pending_clipboard();
         self
     }
 
@@ -1000,7 +1008,7 @@ impl<M: InputModeKind> InputBaseState<M> {
         }
 
         self.readonly = readonly;
-        self.invalidate_pending_paste();
+        self.invalidate_pending_clipboard();
         if readonly {
             self.search_session.replace_mode = false;
         }
@@ -1568,7 +1576,7 @@ impl<M: InputModeKind> InputBaseState<M> {
     }
 
     pub(super) fn enter(&mut self, action: &Enter, window: &mut Window, cx: &mut Context<Self>) {
-        self.invalidate_pending_paste();
+        self.invalidate_pending_clipboard();
         if M::handle_context_menu_action(self, Box::new(action.clone()), window, cx) {
             return;
         }
@@ -1674,7 +1682,7 @@ impl<M: InputModeKind> InputBaseState<M> {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.invalidate_pending_paste();
+        self.invalidate_pending_clipboard();
         self.undo_manager.break_transaction_coalescing();
         // Input has its own text selection; suppress the window-level text
         // selection (Root) so it does not start a drag from here.
@@ -1941,25 +1949,75 @@ impl<M: InputModeKind> InputBaseState<M> {
         window.show_character_palette();
     }
 
-    pub(super) fn copy(&mut self, _: &Copy, _: &mut Window, cx: &mut Context<Self>) {
-        if self.selected_range.is_empty() {
-            return;
-        }
-
-        let selected_text = self.text.slice(self.selected_range).to_string();
-        cx.write_to_clipboard(ClipboardItem::new_string(selected_text));
+    pub(super) fn copy(&mut self, _: &Copy, window: &mut Window, cx: &mut Context<Self>) {
+        self.write_selection_to_clipboard(false, window, cx);
     }
 
     pub(super) fn cut(&mut self, _: &Cut, window: &mut Window, cx: &mut Context<Self>) {
-        if self.selected_range.is_empty() {
+        self.write_selection_to_clipboard(true, window, cx);
+    }
+
+    fn write_selection_to_clipboard(
+        &mut self,
+        cut: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.selected_range.is_empty() || (cut && !self.is_editable()) {
             return;
         }
+        self.invalidate_pending_clipboard();
+        if cut {
+            self.undo_manager.break_transaction_coalescing();
+        }
+        let revision = self.clipboard_revision;
+        let selection = self.selected_range;
+        let reversed = self.selection_reversed;
+        let selected_text = self.text.slice(selection).to_string();
+        let mut request = cx.write_to_clipboard_async(ClipboardItem::new_string(selected_text));
+        // Native writes complete synchronously. Preserve their immediate edit/undo semantics.
+        if let std::task::Poll::Ready(result) = std::future::Future::poll(
+            std::pin::Pin::new(&mut request),
+            &mut std::task::Context::from_waker(std::task::Waker::noop()),
+        ) {
+            self.finish_clipboard_write(result.is_ok(), cut, window, cx);
+            return;
+        }
+        self._clipboard_write_task = Some(cx.spawn_in(window, async move |this, cx| {
+            let result = request.await;
+            _ = this.update_in(cx, |this, window, cx| {
+                // A delayed Cut must never delete a new selection or a later edit,
+                // even after focus, selection, or editability moves away and back.
+                if this.clipboard_revision != revision
+                    || this.selected_range != selection
+                    || this.selection_reversed != reversed
+                    || !this.focus_handle.is_focused(window)
+                    || !window.is_window_active()
+                    || (cut && !this.is_editable())
+                {
+                    return;
+                }
+                this.finish_clipboard_write(result.is_ok(), cut, window, cx);
+            });
+        }));
+    }
 
-        let selected_text = self.text.slice(self.selected_range).to_string();
-        cx.write_to_clipboard(ClipboardItem::new_string(selected_text));
-
-        self.undo_manager.pending_intent = Some(EditIntent::Atomic);
-        self.replace_text_in_range_silent(None, "", window, cx);
+    fn finish_clipboard_write(
+        &mut self,
+        succeeded: bool,
+        cut: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !succeeded {
+            cx.emit(InputEvent::ClipboardWriteFailed);
+            return;
+        }
+        cx.emit(InputEvent::ClipboardWriteSucceeded);
+        if cut {
+            self.undo_manager.pending_intent = Some(EditIntent::Atomic);
+            self.replace_text_in_range_silent(None, "", window, cx);
+        }
     }
 
     pub(super) fn paste(&mut self, _: &Paste, window: &mut Window, cx: &mut Context<Self>) {
@@ -1967,19 +2025,19 @@ impl<M: InputModeKind> InputBaseState<M> {
             return;
         }
         self.undo_manager.break_transaction_coalescing();
-        self.invalidate_pending_paste();
+        self.invalidate_pending_clipboard();
         if let Some(clipboard) = cx.read_from_clipboard() {
             self.paste_clipboard(clipboard, window, cx);
             return;
         }
-        let revision = self.paste_revision;
+        let revision = self.clipboard_revision;
         let selection = self.selected_range;
         let reversed = self.selection_reversed;
         let request = cx.read_from_clipboard_async();
         self._paste_task = Some(cx.spawn_in(window, async move |this, cx| {
             let result = request.await;
             _ = this.update_in(cx, |this, window, cx| {
-                if this.paste_revision != revision
+                if this.clipboard_revision != revision
                     || this.selected_range != selection
                     || this.selection_reversed != reversed
                     || !this.focus_handle.is_focused(window)
@@ -2011,8 +2069,8 @@ impl<M: InputModeKind> InputBaseState<M> {
         self.scroll_to(self.cursor(), None, cx);
     }
 
-    pub(crate) fn invalidate_pending_paste(&mut self) {
-        self.paste_revision = self.paste_revision.wrapping_add(1);
+    pub(crate) fn invalidate_pending_clipboard(&mut self) {
+        self.clipboard_revision = self.clipboard_revision.wrapping_add(1);
     }
 
     fn push_history(
@@ -2067,7 +2125,7 @@ impl<M: InputModeKind> InputBaseState<M> {
     }
 
     pub(super) fn undo(&mut self, _: &Undo, window: &mut Window, cx: &mut Context<Self>) {
-        self.invalidate_pending_paste();
+        self.invalidate_pending_clipboard();
         self.undo_manager.set_ignoring(true);
         if let Some(changes) = self.undo_manager.undo() {
             let selection = changes.last().unwrap().selection_before;
@@ -2081,7 +2139,7 @@ impl<M: InputModeKind> InputBaseState<M> {
     }
 
     pub(super) fn redo(&mut self, _: &Redo, window: &mut Window, cx: &mut Context<Self>) {
-        self.invalidate_pending_paste();
+        self.invalidate_pending_clipboard();
         self.undo_manager.set_ignoring(true);
         if let Some(changes) = self.undo_manager.redo() {
             let selection = changes.last().unwrap().selection_after;
@@ -2142,7 +2200,7 @@ impl<M: InputModeKind> InputBaseState<M> {
     }
 
     pub fn select_all(&mut self, _: &mut Window, cx: &mut Context<Self>) {
-        self.invalidate_pending_paste();
+        self.invalidate_pending_clipboard();
         self.undo_manager.break_transaction_coalescing();
         self.selected_range = (0..self.text.len()).into();
         cx.notify();
@@ -2252,7 +2310,7 @@ impl<M: InputModeKind> InputBaseState<M> {
     ///
     /// Ensure the offset use self.next_boundary or self.previous_boundary to get the correct offset.
     pub(crate) fn select_to(&mut self, offset: usize, cx: &mut Context<Self>) {
-        self.invalidate_pending_paste();
+        self.invalidate_pending_clipboard();
         M::clear_inline_completion(self, cx);
 
         let offset = offset.clamp(0, self.text.len());
@@ -2284,7 +2342,7 @@ impl<M: InputModeKind> InputBaseState<M> {
 
     /// Unselects the currently selected text.
     pub fn unselect(&mut self, _: &mut Window, cx: &mut Context<Self>) {
-        self.invalidate_pending_paste();
+        self.invalidate_pending_clipboard();
         self.undo_manager.break_transaction_coalescing();
         let offset = self.cursor();
         self.selected_range = (offset..offset).into();
@@ -2377,7 +2435,7 @@ impl<M: InputModeKind> InputBaseState<M> {
     }
 
     fn on_blur(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.invalidate_pending_paste();
+        self.invalidate_pending_clipboard();
         if M::is_context_menu_open(self, cx) {
             return;
         }
@@ -2737,7 +2795,7 @@ impl<M: InputModeKind> EntityInputHandler for InputBaseState<M> {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.invalidate_pending_paste();
+        self.invalidate_pending_clipboard();
         let requested_intent = self.undo_manager.pending_intent.take();
         if !self.is_editable() {
             return;
@@ -2873,7 +2931,7 @@ impl<M: InputModeKind> EntityInputHandler for InputBaseState<M> {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.invalidate_pending_paste();
+        self.invalidate_pending_clipboard();
         let requested_intent = self.undo_manager.pending_intent.take();
         if !self.is_editable() {
             return;
