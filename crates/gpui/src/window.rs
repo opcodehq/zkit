@@ -2004,7 +2004,11 @@ impl Window {
         // Browser text insertion can arrive before the newly focused editor paints.
         // Retire its predecessor so the web platform requests a fresh handler.
         #[cfg(target_family = "wasm")]
-        let _ = self.platform_window.take_input_handler();
+        {
+            self.platform_window
+                .text_input_state_changed(crate::TextInputStateChange::FocusLost);
+            let _ = self.platform_window.take_input_handler();
+        }
         self.focus = Some(handle.id);
         self.focus_generation = self.focus_generation.wrapping_add(1);
         self.clear_pending_keystrokes();
@@ -2033,7 +2037,11 @@ impl Window {
             self.focus_generation = self.focus_generation.wrapping_add(1);
         }
         #[cfg(target_family = "wasm")]
-        let _ = self.platform_window.take_input_handler();
+        {
+            self.platform_window
+                .text_input_state_changed(crate::TextInputStateChange::FocusLost);
+            let _ = self.platform_window.take_input_handler();
+        }
         self.focus = None;
         self.refresh();
     }

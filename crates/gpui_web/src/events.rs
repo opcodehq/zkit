@@ -131,7 +131,7 @@ impl WebWindowInner {
         borrowed.input.as_mut().map(|callback| callback(input))
     }
 
-    fn ensure_input_handler(&self) {
+    pub(crate) fn ensure_input_handler(&self) {
         if self.state.borrow().input_handler.is_none() {
             // Focus changes install their text handler during paint. A text
             // event may arrive before the next animation frame after a click.
@@ -360,9 +360,26 @@ impl WebWindowInner {
                 capslock,
             }));
 
+            // The browser owns candidate navigation and confirmation. Dispatching
+            // Enter to GPUI first could submit the editor while confirming IME.
+            if this.is_composing.get() || event.is_composing() {
+                return;
+            }
+
             let key = dom_key_to_gpui_key(&event);
 
             if is_modifier_only_key(&key) {
+                return;
+            }
+
+            // GPUI's synchronous clipboard read is unavailable on the web.
+            // Let the browser produce a paste event with its clipboardData.
+            let paste_modifier = if this.is_mac {
+                modifiers.platform && !modifiers.control
+            } else {
+                modifiers.control && !modifiers.platform
+            };
+            if key == "v" && paste_modifier && !modifiers.alt {
                 return;
             }
 
@@ -388,14 +405,8 @@ impl WebWindowInner {
                 }
             }
 
-            if this.is_composing.get() || event.is_composing() {
-                event.prevent_default();
-                return;
-            }
-
             if modifiers.is_subset_of(&Modifiers::shift()) {
                 if let Some(text) = key_char {
-                    this.ensure_input_handler();
                     this.with_input_handler(|handler| {
                         handler.replace_text_in_range(None, &text);
                     });
@@ -422,7 +433,6 @@ impl WebWindowInner {
             match event.input_type().as_str() {
                 "insertText" | "insertReplacementText" => {
                     if let Some(text) = event.data() {
-                        this.ensure_input_handler();
                         if this
                             .with_input_handler(|handler| {
                                 handler.replace_text_in_range(None, &text);
@@ -499,17 +509,27 @@ impl WebWindowInner {
                 return;
             }
 
-            event.prevent_default();
-            this.with_input_handler(|handler| {
-                handler.replace_text_in_range(None, &text);
-            });
+            if this
+                .with_input_handler(|handler| {
+                    handler.replace_text_in_range(None, &text);
+                })
+                .is_some()
+            {
+                this.is_composing.set(false);
+                this.composition_owner_active.set(false);
+                this.input_element.set_value("");
+                event.prevent_default();
+            }
         })
     }
 
     fn register_composition_start(self: &Rc<Self>) -> Closure<dyn FnMut(JsValue)> {
         let this = Rc::clone(self);
         self.listen_input("compositionstart", move |_event: JsValue| {
+            this.ensure_input_handler();
             this.is_composing.set(true);
+            this.composition_owner_active
+                .set(this.state.borrow().input_handler.is_some());
         })
     }
 
@@ -517,8 +537,10 @@ impl WebWindowInner {
         let this = Rc::clone(self);
         self.listen_input("compositionupdate", move |event: JsValue| {
             let event: web_sys::CompositionEvent = event.unchecked_into();
+            if !this.is_composing.get() || !this.composition_owner_active.get() {
+                return;
+            }
             let data = event.data().unwrap_or_default();
-            this.is_composing.set(true);
             this.with_input_handler(|handler| {
                 handler.replace_and_mark_text_in_range(None, &data, None);
             });
@@ -530,11 +552,14 @@ impl WebWindowInner {
         self.listen_input("compositionend", move |event: JsValue| {
             let event: web_sys::CompositionEvent = event.unchecked_into();
             let data = event.data().unwrap_or_default();
-            this.is_composing.set(false);
-            this.with_input_handler(|handler| {
-                handler.replace_text_in_range(None, &data);
-                handler.unmark_text();
-            });
+            let composing = this.is_composing.replace(false);
+            let owned = this.composition_owner_active.replace(false);
+            if composing && owned {
+                this.with_input_handler(|handler| {
+                    handler.replace_text_in_range(None, &data);
+                    handler.unmark_text();
+                });
+            }
             this.input_element.set_value("");
         })
     }
@@ -556,6 +581,8 @@ impl WebWindowInner {
     fn register_blur(self: &Rc<Self>) -> Closure<dyn FnMut(JsValue)> {
         let this = Rc::clone(self);
         self.listen_input("blur", move |_event: JsValue| {
+            this.abandon_composition();
+            this.is_composing.set(false);
             {
                 let mut state = this.state.borrow_mut();
                 state.is_active = false;

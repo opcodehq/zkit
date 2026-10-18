@@ -55,6 +55,7 @@ pub(crate) struct WebWindowInner {
     pub(crate) last_physical_size: Cell<(u32, u32)>,
     pub(crate) notify_scale: Cell<bool>,
     pub(crate) is_composing: Cell<bool>,
+    pub(crate) composition_owner_active: Cell<bool>,
     mql_handle: RefCell<Option<MqlHandle>>,
     pending_physical_size: Cell<Option<(u32, u32)>>,
 }
@@ -182,6 +183,7 @@ impl WebWindow {
             last_physical_size: Cell::new((0, 0)),
             notify_scale: Cell::new(false),
             is_composing: Cell::new(false),
+            composition_owner_active: Cell::new(false),
             mql_handle: RefCell::new(None),
             pending_physical_size: Cell::new(None),
         });
@@ -412,10 +414,26 @@ impl WebWindowInner {
         &self,
         f: impl FnOnce(&mut PlatformInputHandler) -> R,
     ) -> Option<R> {
+        self.ensure_input_handler();
         let mut handler = self.state.borrow_mut().input_handler.take()?;
         let result = f(&mut handler);
         self.state.borrow_mut().input_handler = Some(handler);
         Some(result)
+    }
+
+    pub(crate) fn abandon_composition(&self) {
+        self.is_composing.set(false);
+        if !self.composition_owner_active.replace(false) {
+            return;
+        }
+        // Clear marking on the original editor after GPUI's focus callback has
+        // returned. A late DOM composition event must never edit its successor.
+        if let Some(mut handler) = self.state.borrow_mut().input_handler.take() {
+            wasm_bindgen_futures::spawn_local(async move {
+                handler.unmark_text();
+            });
+        }
+        self.input_element.set_value("");
     }
 
     pub(crate) fn register_appearance_change(
@@ -561,6 +579,12 @@ impl PlatformWindow for WebWindow {
 
     fn take_input_handler(&mut self) -> Option<PlatformInputHandler> {
         self.inner.state.borrow_mut().input_handler.take()
+    }
+
+    fn text_input_state_changed(&self, change: gpui::TextInputStateChange) {
+        if change == gpui::TextInputStateChange::FocusLost {
+            self.inner.abandon_composition();
+        }
     }
 
     fn prompt(
