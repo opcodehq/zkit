@@ -297,6 +297,11 @@ pub trait Platform: 'static {
     fn should_auto_hide_scrollbars(&self) -> bool;
 
     fn read_from_clipboard(&self) -> Option<ClipboardItem>;
+    /// Read clipboard data on platforms whose clipboard API is asynchronous.
+    /// Initiate this while handling the user's paste gesture.
+    fn read_from_clipboard_async(&self) -> Task<Result<Option<ClipboardItem>>> {
+        Task::ready(Ok(self.read_from_clipboard()))
+    }
     fn write_to_clipboard(&self, item: ClipboardItem);
 
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]

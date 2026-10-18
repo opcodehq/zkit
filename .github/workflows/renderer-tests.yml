@@ -9,6 +9,33 @@ concurrency:
   group: renderer-tests-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  clipboard:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      CARGO_BUILD_JOBS: 2
+      CARGO_PROFILE_DEV_DEBUG: 0
+      CARGO_PROFILE_TEST_DEBUG: 0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - if: runner.os == 'Linux'
+        run: >-
+          sudo apt-get update && sudo apt-get install -y
+          build-essential cmake clang libclang-dev pkg-config libssl-dev
+          libfontconfig-dev libfreetype-dev libxcb1-dev libxcb-shape0-dev
+          libxcb-xfixes0-dev libxkbcommon-dev libxkbcommon-x11-dev
+          libwayland-dev libvulkan-dev libasound2-dev
+      - name: Clipboard selection and undo regressions
+        run: cargo --config .github/clipboard-tests.toml test --locked -p gpui-base --lib paste
+
   windows:
     runs-on: windows-2022
     timeout-minutes: 60

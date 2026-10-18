@@ -1,0 +1,5 @@
+[profile.test]
+debug = 0
+
+[profile.test.package."*"]
+opt-level = 0

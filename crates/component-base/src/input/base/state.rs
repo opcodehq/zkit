@@ -115,6 +115,8 @@ pub enum InputEvent {
     PressEnter { secondary: bool, shift: bool },
     Focus,
     Blur,
+    /// A user-initiated paste could not access the platform clipboard.
+    ClipboardReadFailed,
 }
 
 pub(super) const CONTEXT: &str = "Input";
@@ -267,6 +269,21 @@ pub(crate) fn init(cx: &mut App) {
         #[cfg(not(target_os = "macos"))]
         KeyBinding::new("ctrl-h", Replace, Some(CONTEXT)),
     ]);
+    // Browser builds use a WASM target on every host OS. Keep common Meta-key
+    // editing commands available for browsers running on macOS.
+    #[cfg(target_family = "wasm")]
+    cx.bind_keys([
+        KeyBinding::new("cmd-a", SelectAll, Some(CONTEXT)),
+        KeyBinding::new("cmd-c", Copy, Some(CONTEXT)),
+        KeyBinding::new("cmd-x", Cut, Some(CONTEXT)),
+        KeyBinding::new("cmd-v", Paste, Some(CONTEXT)),
+        KeyBinding::new("cmd-z", Undo, Some(CONTEXT)),
+        KeyBinding::new("cmd-shift-z", Redo, Some(CONTEXT)),
+        KeyBinding::new("cmd-left", MoveHome, Some(CONTEXT)),
+        KeyBinding::new("cmd-right", MoveEnd, Some(CONTEXT)),
+        KeyBinding::new("cmd-shift-left", SelectToStartOfLine, Some(CONTEXT)),
+        KeyBinding::new("cmd-shift-right", SelectToEndOfLine, Some(CONTEXT)),
+    ]);
 }
 
 /// The shared text-editing engine behind [`crate::input::InputState`],
@@ -287,6 +304,8 @@ pub struct InputBaseState<M: InputModeKind> {
     pub(super) text: Rope,
     pub(super) display_map: DisplayMap,
     pub(super) undo_manager: UndoManager,
+    paste_revision: u64,
+    _paste_task: Option<gpui::Task<()>>,
     pub(super) search_session: super::SearchSession,
     pub(super) searchable: bool,
     pub(super) replaceable: bool,
@@ -574,6 +593,9 @@ impl<M: InputModeKind> InputBaseState<M> {
             cx.observe(&blink_cursor, |_, _, cx| cx.notify()),
             // Blink the cursor when the window is active, pause when it's not.
             cx.observe_window_activation(window, |input, window, cx| {
+                if !window.is_window_active() {
+                    input.invalidate_pending_paste();
+                }
                 if window.is_window_active() {
                     let focus_handle = input.focus_handle.clone();
                     if focus_handle.is_focused(window) {
@@ -603,6 +625,8 @@ impl<M: InputModeKind> InputBaseState<M> {
             cursor_surrounding_lines: None,
             blink_cursor,
             undo_manager,
+            paste_revision: 0,
+            _paste_task: None,
             selected_range: Selection::default(),
             selected_word_range: None,
             selection_reversed: false,
@@ -908,6 +932,7 @@ impl<M: InputModeKind> InputBaseState<M> {
     }
 
     fn reset_selection(&mut self) {
+        self.invalidate_pending_paste();
         // For single-line inputs the caret is placed at the end of the text
         // (matching HTML `<input>`); multi-line inputs reset the selection to
         // `0..0`.
@@ -951,6 +976,7 @@ impl<M: InputModeKind> InputBaseState<M> {
         }
 
         self.disabled = disabled;
+        self.invalidate_pending_paste();
         cx.notify();
     }
 
@@ -964,6 +990,7 @@ impl<M: InputModeKind> InputBaseState<M> {
     #[allow(unused)]
     pub(crate) fn readonly(mut self, readonly: bool) -> Self {
         self.readonly = readonly;
+        self.invalidate_pending_paste();
         self
     }
 
@@ -973,6 +1000,7 @@ impl<M: InputModeKind> InputBaseState<M> {
         }
 
         self.readonly = readonly;
+        self.invalidate_pending_paste();
         if readonly {
             self.search_session.replace_mode = false;
         }
@@ -1540,6 +1568,7 @@ impl<M: InputModeKind> InputBaseState<M> {
     }
 
     pub(super) fn enter(&mut self, action: &Enter, window: &mut Window, cx: &mut Context<Self>) {
+        self.invalidate_pending_paste();
         if M::handle_context_menu_action(self, Box::new(action.clone()), window, cx) {
             return;
         }
@@ -1645,6 +1674,7 @@ impl<M: InputModeKind> InputBaseState<M> {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.invalidate_pending_paste();
         self.undo_manager.break_transaction_coalescing();
         // Input has its own text selection; suppress the window-level text
         // selection (Root) so it does not start a drag from here.
@@ -1933,12 +1963,56 @@ impl<M: InputModeKind> InputBaseState<M> {
     }
 
     pub(super) fn paste(&mut self, _: &Paste, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(clipboard) = cx.read_from_clipboard() {
-            let new_text = clipboard.text().unwrap_or_default();
-            self.undo_manager.pending_intent = Some(EditIntent::Atomic);
-            self.replace_text_in_range_silent(None, &new_text, window, cx);
-            self.scroll_to(self.cursor(), None, cx);
+        if !self.is_editable() {
+            return;
         }
+        self.undo_manager.break_transaction_coalescing();
+        self.invalidate_pending_paste();
+        if let Some(clipboard) = cx.read_from_clipboard() {
+            self.paste_clipboard(clipboard, window, cx);
+            return;
+        }
+        let revision = self.paste_revision;
+        let selection = self.selected_range;
+        let reversed = self.selection_reversed;
+        let request = cx.read_from_clipboard_async();
+        self._paste_task = Some(cx.spawn_in(window, async move |this, cx| {
+            let result = request.await;
+            _ = this.update_in(cx, |this, window, cx| {
+                if this.paste_revision != revision
+                    || this.selected_range != selection
+                    || this.selection_reversed != reversed
+                    || !this.focus_handle.is_focused(window)
+                    || !window.is_window_active()
+                    || !this.is_editable()
+                {
+                    return;
+                }
+                match result {
+                    Ok(Some(clipboard)) => this.paste_clipboard(clipboard, window, cx),
+                    Ok(None) => {}
+                    Err(_) => cx.emit(InputEvent::ClipboardReadFailed),
+                }
+            });
+        }));
+    }
+
+    fn paste_clipboard(
+        &mut self,
+        clipboard: ClipboardItem,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(text) = clipboard.text().filter(|text| !text.is_empty()) else {
+            return;
+        };
+        self.undo_manager.pending_intent = Some(EditIntent::Atomic);
+        self.replace_text_in_range_silent(None, &text, window, cx);
+        self.scroll_to(self.cursor(), None, cx);
+    }
+
+    pub(crate) fn invalidate_pending_paste(&mut self) {
+        self.paste_revision = self.paste_revision.wrapping_add(1);
     }
 
     fn push_history(
@@ -1993,6 +2067,7 @@ impl<M: InputModeKind> InputBaseState<M> {
     }
 
     pub(super) fn undo(&mut self, _: &Undo, window: &mut Window, cx: &mut Context<Self>) {
+        self.invalidate_pending_paste();
         self.undo_manager.set_ignoring(true);
         if let Some(changes) = self.undo_manager.undo() {
             let selection = changes.last().unwrap().selection_before;
@@ -2006,6 +2081,7 @@ impl<M: InputModeKind> InputBaseState<M> {
     }
 
     pub(super) fn redo(&mut self, _: &Redo, window: &mut Window, cx: &mut Context<Self>) {
+        self.invalidate_pending_paste();
         self.undo_manager.set_ignoring(true);
         if let Some(changes) = self.undo_manager.redo() {
             let selection = changes.last().unwrap().selection_after;
@@ -2066,6 +2142,7 @@ impl<M: InputModeKind> InputBaseState<M> {
     }
 
     pub fn select_all(&mut self, _: &mut Window, cx: &mut Context<Self>) {
+        self.invalidate_pending_paste();
         self.undo_manager.break_transaction_coalescing();
         self.selected_range = (0..self.text.len()).into();
         cx.notify();
@@ -2175,6 +2252,7 @@ impl<M: InputModeKind> InputBaseState<M> {
     ///
     /// Ensure the offset use self.next_boundary or self.previous_boundary to get the correct offset.
     pub(crate) fn select_to(&mut self, offset: usize, cx: &mut Context<Self>) {
+        self.invalidate_pending_paste();
         M::clear_inline_completion(self, cx);
 
         let offset = offset.clamp(0, self.text.len());
@@ -2206,6 +2284,7 @@ impl<M: InputModeKind> InputBaseState<M> {
 
     /// Unselects the currently selected text.
     pub fn unselect(&mut self, _: &mut Window, cx: &mut Context<Self>) {
+        self.invalidate_pending_paste();
         self.undo_manager.break_transaction_coalescing();
         let offset = self.cursor();
         self.selected_range = (offset..offset).into();
@@ -2298,6 +2377,7 @@ impl<M: InputModeKind> InputBaseState<M> {
     }
 
     fn on_blur(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.invalidate_pending_paste();
         if M::is_context_menu_open(self, cx) {
             return;
         }
@@ -2657,6 +2737,7 @@ impl<M: InputModeKind> EntityInputHandler for InputBaseState<M> {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.invalidate_pending_paste();
         let requested_intent = self.undo_manager.pending_intent.take();
         if !self.is_editable() {
             return;
@@ -2792,6 +2873,7 @@ impl<M: InputModeKind> EntityInputHandler for InputBaseState<M> {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.invalidate_pending_paste();
         let requested_intent = self.undo_manager.pending_intent.take();
         if !self.is_editable() {
             return;
@@ -3741,6 +3823,23 @@ mod tests {
                 state.undo(&Undo, window, cx);
                 assert_eq!(state.value(), "abcd");
                 assert_eq!(state.selected_range(), 1..1);
+            });
+        });
+    }
+
+    #[gpui::test]
+    fn test_empty_clipboard_paste_keeps_selected_text(cx: &mut TestAppContext) {
+        let input_view = InputView::build(cx, |state| state);
+        let mut cx = VisualTestContext::from_window(input_view.window_handle.into(), cx);
+        let input = input_view.input;
+        cx.update(|window, cx| {
+            cx.write_to_clipboard(ClipboardItem::new_string(String::new()));
+            input.update(cx, |state, cx| {
+                state.set_value("keep", window, cx);
+                state.select_all(window, cx);
+                state.paste(&Paste, window, cx);
+                assert_eq!(state.value(), "keep");
+                assert_eq!(state.selected_range(), 0..4);
             });
         });
     }

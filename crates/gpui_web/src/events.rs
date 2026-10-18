@@ -380,7 +380,10 @@ impl WebWindowInner {
                 modifiers.control && !modifiers.platform
             };
             if key == "v" && paste_modifier && !modifiers.alt {
-                return;
+                this.ensure_input_handler();
+                if this.state.borrow().input_handler.is_some() {
+                    return;
+                }
             }
 
             let is_held = event.repeat();

@@ -342,6 +342,31 @@ impl Platform for WebPlatform {
         None
     }
 
+    fn read_from_clipboard_async(&self) -> Task<Result<Option<ClipboardItem>>> {
+        // Start the browser request inside the gesture, before spawning the
+        // waiter. Missing APIs and synchronous throws follow the error path too.
+        let request = (|| {
+            let clipboard = js_sys::Reflect::get(
+                self.browser_window.navigator().as_ref(),
+                &"clipboard".into(),
+            )?;
+            let read = js_sys::Reflect::get(&clipboard, &"readText".into())?
+                .dyn_into::<js_sys::Function>()?;
+            read.call0(&clipboard)?.dyn_into::<js_sys::Promise>()
+        })();
+        let Ok(request) = request else {
+            return Task::ready(Err(anyhow::anyhow!("Clipboard text is unavailable")));
+        };
+        self.foreground_executor.spawn(async move {
+            let text = wasm_bindgen_futures::JsFuture::from(request)
+                .await
+                .ok()
+                .and_then(|value| value.as_string())
+                .ok_or_else(|| anyhow::anyhow!("Clipboard text could not be read"))?;
+            Ok((!text.is_empty()).then(|| ClipboardItem::new_string(text)))
+        })
+    }
+
     fn write_to_clipboard(&self, item: ClipboardItem) {
         if let Some(text) = item.text()
             && let Some(window) = web_sys::window()

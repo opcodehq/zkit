@@ -1335,6 +1335,12 @@ impl App {
         self.platform.read_from_clipboard()
     }
 
+    /// Starts a clipboard read for a user-initiated paste. Consumers must
+    /// revalidate the destination when the asynchronous result arrives.
+    pub fn read_from_clipboard_async(&self) -> Task<Result<Option<ClipboardItem>>> {
+        self.platform.read_from_clipboard_async()
+    }
+
     /// Sets the text rendering mode for the application.
     pub fn set_text_rendering_mode(&mut self, mode: TextRenderingMode) {
         self.text_rendering_mode.set(mode);
