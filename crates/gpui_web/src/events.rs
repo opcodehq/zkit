@@ -138,7 +138,7 @@ impl WebWindowInner {
             if let Some(callback) = self.callbacks.borrow_mut().request_frame.as_mut() {
                 callback(RequestFrameOptions {
                     require_presentation: true,
-                    force_render: false,
+                    force_render: true,
                 });
             }
         }
