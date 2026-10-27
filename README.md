@@ -13,3 +13,9 @@ The toolkit maintains GPUI platform, rendering, text and input foundations along
 - Native platform crates implement macOS, Linux and Windows backends.
 
 See `NOTICE`, `LICENSE-APACHE` and `LICENSE-GPL` for retained upstream licensing.
+
+## Dither
+
+The portable `zkit-dither` engine powers GPUI texture surfaces and a WebAssembly playground. It includes 35 background/chart fields, Bayer and blue-noise matrices, palettes, image diffusion and SVG export. Native components include textured controls, data-driven charts and cached images.
+
+Run `cargo run -p zkit-components --example dither` for the native gallery, or see [website/README.md](website/README.md) for the website, which documents the components, motion and dither. The [dither guide](docs/dither.md) documents the API, supported examples and remaining interaction effects.

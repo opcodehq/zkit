@@ -36,9 +36,18 @@ focus stays inside an open dialog.
 | `pulse`    | Shared lease-based loader clock (about 30 or 15 fps; parks when no loader is painted) and pure phase math. |
 | `focus`    | `Root`, trap-aware `focus_next` / `focus_previous`, `Disclosure` (open state with focus restore). |
 | `button`   | `Button` (Primary, Accent, Secondary, Ghost, Danger; Small, Medium, Large; disabled, selected, toggled, expanded, loading; icon-only; shortcut hint), `Kbd`, `format_keystroke`. |
-| `layout`   | `h_stack`, `v_stack`, `spacer`, `Divider`, `Badge`, `Toolbar`, `Panel`, `Sidebar`, `SidebarSection`, `SidebarItem`. |
-| `surface`  | `card`, `Popover` (dialog or menu kind), `Menu`, `MenuItem`, `Dialog`, `DismissReason`. |
+| `layout`   | `h_stack`, `v_stack`, `spacer`, `Divider`, `Badge`, `Toolbar`, `Panel` (a frame: title band, inset body plate, footer; `plain_body()` for a `Card` inside), `Card` (title, description, action, body, footer), `Sidebar`, `SidebarSection`, `SidebarItem`. |
+| `surface`  | `card`, `Popover` (dialog or menu kind), `Menu`, `MenuItem`, `Dialog` (header, body, and actions in a muted footer band), `DismissReason`. |
 | `progress` | `ProgressBar` (determinate or indeterminate), `Spinner`, `PulseLoader`. |
+
+## Look
+
+Controls are 32 px tall (28 small, 36 large) with 10 px corners and 14 px
+text. Dialogs, cards and frames use 18 px corners. Bordered plates rest on a
+hairline and a soft shadow (`Theme::control_shadow`); floating surfaces use
+`Theme::overlay_shadow`; filled buttons add a one-pixel top highlight
+(`Theme::filled_shadow`). Neutrals are achromatic; the accent colours focus
+rings, accent buttons and dither ink.
 
 ## Behavior contract
 

@@ -1,0 +1,19 @@
+{
+  "name": "zkit-dither-site",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "npm run build:engine && vite build",
+    "build:engine": "bash scripts/build-engine.sh",
+    "preview": "vite preview --host 0.0.0.0",
+    "predev": "npm run build:engine"
+  },
+  "devDependencies": {
+    "vite": "^7.2.2"
+  },
+  "dependencies": {
+    "lucide": "^1.62.0"
+  }
+}

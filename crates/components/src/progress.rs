@@ -10,10 +10,11 @@
 //! has a still state under reduced motion.
 
 use gpui::{
-    App, ElementId, Hsla, InteractiveElement as _, IntoElement, ParentElement as _, Pixels,
-    RenderOnce, Role, SharedString, StatefulInteractiveElement as _, Styled, Window, div,
-    prelude::FluentBuilder as _, px, relative,
+    App, Bounds, ElementId, Hsla, InteractiveElement as _, IntoElement, ParentElement as _,
+    PathBuilder, Pixels, RenderOnce, Role, SharedString, StatefulInteractiveElement as _, Styled,
+    Window, canvas, div, point, prelude::FluentBuilder as _, px, relative,
 };
+use std::f32::consts::TAU;
 
 use crate::motion::{EASE_IN_OUT, MotionSpec, PULSE};
 use crate::pulse::{self, Rate};
@@ -41,7 +42,7 @@ impl ProgressBar {
             value: None,
             label: None,
             color: None,
-            height: px(4.),
+            height: px(6.),
         }
     }
 
@@ -122,7 +123,7 @@ impl RenderOnce for ProgressBar {
             .h(self.height)
             .rounded(radius)
             .overflow_hidden()
-            .bg(theme.colors.hover)
+            .bg(theme.colors.border_strong)
             .child(indicator)
     }
 }
@@ -136,18 +137,21 @@ pub struct Spinner {
     accessible: Option<(ElementId, SharedString)>,
 }
 
-const SPINNER_SIDE: usize = 3;
+/// One full turn of the spinner's arc.
+const ROTATE: MotionSpec = MotionSpec::new(900, crate::motion::EASE);
+/// Share of the ring covered by the moving arc.
+const ARC: f32 = 0.25;
 
 impl Spinner {
     pub fn new() -> Self {
         Self {
-            size: px(12.),
+            size: px(16.),
             color: None,
             accessible: None,
         }
     }
 
-    /// Overall edge length; cells and gaps scale with it.
+    /// Diameter; the stroke scales with it.
     pub fn size(mut self, size: Pixels) -> Self {
         self.size = size;
         self
@@ -174,31 +178,47 @@ impl Default for Spinner {
 impl RenderOnce for Spinner {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let view = window.current_view();
-        let activity = pulse::activity(view, Rate::Coarse, cx);
+        // A ring that turns at a constant rate. Under a system-only motion
+        // reduction the arc holds still and breathes; an explicit preference
+        // keeps it fully still.
+        let (turn, opacity) = if cx.reduce_motion() {
+            (
+                0.125,
+                pulse::activity(view, Rate::Coarse, cx).opacity(0., 1.),
+            )
+        } else {
+            (pulse::phase(&ROTATE, view, Rate::Smooth, cx), 1.)
+        };
         let color = self.color.unwrap_or(cx.theme().colors.accent);
-        // side cells + (side - 1) half-cell gaps fill the edge exactly.
-        let cell = self.size / (SPINNER_SIDE as f32 * 1.5 - 0.5);
-        let gap = cell / 2.;
+        let size = self.size;
 
-        let grid = div()
-            .flex_none()
-            .size(self.size)
-            .flex()
-            .flex_col()
-            .gap(gap)
-            .children((0..SPINNER_SIDE).map(move |row| {
-                div()
-                    .flex()
-                    .gap(gap)
-                    .children((0..SPINNER_SIDE).map(move |col| {
-                        let phase = pulse::spin_cell_phase(row, col, SPINNER_SIDE);
-                        div()
-                            .size(cell)
-                            .rounded(cell / 2.)
-                            .bg(color)
-                            .opacity(activity.opacity(phase, pulse::SPIN_DIM))
-                    }))
-            }));
+        let ring = div().flex_none().size(size).child(
+            canvas(
+                |_, _, _| (),
+                move |bounds: Bounds<Pixels>, _, window, _| {
+                    let d = f32::from(bounds.size.width.min(bounds.size.height));
+                    let stroke = (d / 8.).max(1.5);
+                    let r = d / 2. - stroke / 2.;
+                    let c = bounds.center();
+                    let at = |a: f32| point(c.x + px(r * a.sin()), c.y - px(r * a.cos()));
+                    let arc = |from: f32, sweep: f32, steps: usize| {
+                        let mut path = PathBuilder::stroke(px(stroke));
+                        path.move_to(at(from));
+                        for i in 1..=steps {
+                            path.line_to(at(from + sweep * i as f32 / steps as f32));
+                        }
+                        path.build().ok()
+                    };
+                    if let Some(track) = arc(0., TAU, 48) {
+                        window.paint_path(track, color.opacity(0.2 * opacity));
+                    }
+                    if let Some(head) = arc(turn * TAU, ARC * TAU, 16) {
+                        window.paint_path(head, color.opacity(opacity));
+                    }
+                },
+            )
+            .size_full(),
+        );
 
         match self.accessible {
             Some((id, label)) => div()
@@ -206,9 +226,9 @@ impl RenderOnce for Spinner {
                 .role(Role::ProgressIndicator)
                 .aria_label(label)
                 .a11y_synthetic_children(|tree| tree.parent_node().set_busy())
-                .child(grid)
+                .child(ring)
                 .into_any_element(),
-            None => grid.into_any_element(),
+            None => ring.into_any_element(),
         }
     }
 }

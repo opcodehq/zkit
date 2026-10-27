@@ -12,9 +12,11 @@ use gpui::{
     WindowOptions, actions, div, prelude::*, px, size,
 };
 use zkit_components::{
-    Accent, ActiveTheme as _, Appearance, Badge, Button, Dialog, Disclosure, Divider, Menu,
-    MenuItem, MotionPreference, Panel, Popover, ProgressBar, PulseLoader, Root, Sidebar,
-    SidebarItem, SidebarSection, Spinner, Theme, Toolbar, h_stack, motion, spacer, v_stack,
+    Accent, ActiveTheme as _, Appearance, Badge, Button, Card, ChartFill, ChartKind, Dialog,
+    Disclosure, DitherAvatar, DitherButton, DitherChart, DitherGlobe, DitherLoader, Divider,
+    LoaderVariant, Menu, MenuItem, MotionPreference, Panel, Popover, ProgressBar, PulseLoader,
+    Root, Sidebar, SidebarItem, SidebarSection, Spinner, Theme, Toolbar, h_stack, motion, spacer,
+    v_stack,
 };
 
 #[cfg(target_family = "wasm")]
@@ -189,8 +191,8 @@ impl Gallery {
             .action(Button::icon("buttons-more", "⋯", "More button options").small())
             .child(
                 v_stack()
-                    .p(px(12.))
-                    .gap(px(10.))
+                    .p(px(20.))
+                    .gap(px(12.))
                     .child(
                         row()
                             .child(
@@ -260,6 +262,163 @@ impl Gallery {
             )
     }
 
+    fn cards_panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme().clone();
+        let field = |id: &'static str, label: &'static str, value: &'static str| {
+            v_stack()
+                .gap(px(6.))
+                .child(div().font_weight(gpui::FontWeight::MEDIUM).child(label))
+                .child(
+                    div()
+                        .id(id)
+                        .h(theme.metrics.control_height_md)
+                        .px(px(11.))
+                        .flex()
+                        .items_center()
+                        .rounded(theme.metrics.radius_lg)
+                        .border_1()
+                        .border_color(theme.colors.border_strong)
+                        .bg(theme.colors.background)
+                        .shadow(theme.control_shadow())
+                        .text_color(theme.colors.text_faint)
+                        .child(value),
+                )
+        };
+        Panel::new("cards")
+            .title("Card within a frame")
+            .plain_body()
+            .footer("ⓘ This will take a few seconds to complete.")
+            .child(
+                h_stack()
+                    .p(px(20.))
+                    .gap(px(16.))
+                    .items_start()
+                    .child(
+                        Card::new("create-project")
+                            .title("Create project")
+                            .description("Deploy your new project in one click.")
+                            .w(px(320.))
+                            .child(
+                                v_stack()
+                                    .gap(px(14.))
+                                    .child(field("project-name", "Name", "Name of your project"))
+                                    .child(field("framework", "Framework", "GPUI")),
+                            )
+                            .footer(
+                                Button::new("deploy", "Deploy")
+                                    .primary()
+                                    .full_width()
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.set_status("Deploying", cx)
+                                    })),
+                            ),
+                    )
+                    .child(
+                        Card::new("loaders")
+                            .title("Dither loaders")
+                            .description("Ring, dots, pulse and bar.")
+                            .flex_1()
+                            .child(
+                                h_stack()
+                                    .gap(px(24.))
+                                    .items_center()
+                                    .child(DitherLoader::new("ld-ring", "Loading"))
+                                    .child(
+                                        DitherLoader::new("ld-dots", "Loading")
+                                            .variant(LoaderVariant::Dots),
+                                    )
+                                    .child(
+                                        DitherLoader::new("ld-pulse", "Loading")
+                                            .variant(LoaderVariant::Pulse),
+                                    )
+                                    .child(
+                                        DitherLoader::new("ld-bar", "Loading")
+                                            .variant(LoaderVariant::Bar),
+                                    ),
+                            )
+                            .child(
+                                h_stack().pt(px(16.)).gap(px(10.)).children(
+                                    [
+                                        "Ada Lovelace",
+                                        "Grace Hopper",
+                                        "Alan Turing",
+                                        "Radia Perlman",
+                                    ]
+                                    .into_iter()
+                                    .enumerate()
+                                    .map(|(i, name)| DitherAvatar::new(("avatar", i), name)),
+                                ),
+                            )
+                            .child(
+                                h_stack()
+                                    .pt(px(16.))
+                                    .gap(px(10.))
+                                    .child(DitherButton::new("db-save", "Save changes"))
+                                    .child(
+                                        DitherButton::new("db-deploy", "Deploy →")
+                                            .fill(ChartFill::Hatched)
+                                            .color(cx.theme().colors.chart[2]),
+                                    )
+                                    .child(DitherButton::new("db-off", "Disabled").disabled(true)),
+                            )
+                            .footer(
+                                DitherGlobe::new("globe")
+                                    .markers([(51.51, -0.13), (35.68, 139.69), (37.77, -122.42)])
+                                    .arcs([((37.77, -122.42), (51.51, -0.13))])
+                                    .label("Offices")
+                                    .w_full()
+                                    .h(px(220.)),
+                            ),
+                    ),
+            )
+    }
+
+    fn charts_panel(&self) -> impl IntoElement {
+        const MONTHS: [&str; 6] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
+        Panel::new("charts").title("Charts").child(
+            v_stack()
+                .p(px(20.))
+                .gap(px(28.))
+                .child(
+                    DitherChart::new("visitors", "Visitors")
+                        .description("January to June 2026")
+                        .kind(ChartKind::Area)
+                        .stacked(true)
+                        .categories(MONTHS)
+                        .series("Desktop", [186., 305., 237., 273., 209., 314.])
+                        .series("Mobile", [80., 200., 120., 190., 130., 140.]),
+                )
+                .child(
+                    DitherChart::new("deploys", "Deploys")
+                        .description("Production and preview, per month")
+                        .kind(ChartKind::Bar)
+                        .stacked(true)
+                        .categories(MONTHS)
+                        .series("Production", [42., 58., 51., 66., 72., 80.])
+                        .series("Preview", [120., 140., 98., 160., 172., 190.]),
+                )
+                .child(
+                    DitherChart::new("stats", "Character stats")
+                        .kind(ChartKind::Radar)
+                        .categories(["Speed", "Power", "Range", "Defense", "Magic", "Luck"])
+                        .series("Knight", [70., 90., 40., 95., 20., 50.])
+                        .series("Mage", [55., 40., 85., 30., 98., 65.]),
+                )
+                .child(
+                    DitherChart::new("regions", "Requests by region")
+                        .kind(ChartKind::Donut)
+                        .categories([
+                            "North America",
+                            "Europe",
+                            "Asia Pacific",
+                            "South America",
+                            "Africa",
+                        ])
+                        .series("Requests", [48210., 31870., 17430., 6340., 2150.]),
+                ),
+        )
+    }
+
     fn progress_panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let caption = |text: &'static str| {
@@ -270,8 +429,8 @@ impl Gallery {
         };
         Panel::new("progress").title("Progress").child(
             v_stack()
-                .p(px(12.))
-                .gap(px(10.))
+                .p(px(20.))
+                .gap(px(12.))
                 .child(caption("Determinate"))
                 .child(
                     h_stack()
@@ -325,8 +484,8 @@ impl Gallery {
         let entrance = self.entrance;
         Panel::new("surfaces").title("Surfaces and motion").child(
             v_stack()
-                .p(px(12.))
-                .gap(px(10.))
+                .p(px(20.))
+                .gap(px(12.))
                 .child(
                     h_stack()
                         .gap(px(6.))
@@ -448,14 +607,16 @@ impl Render for Gallery {
                                     .flex_1()
                                     .min_w_0()
                                     .overflow_y_scroll()
-                                    .p(px(12.))
+                                    .p(px(16.))
                                     .flex()
                                     .flex_col()
-                                    .gap(px(12.))
+                                    .gap(px(16.))
                                     .child(self.buttons_panel(cx))
+                                    .child(self.cards_panel(cx))
+                                    .child(self.charts_panel())
                                     .child(
                                         h_stack()
-                                            .gap(px(12.))
+                                            .gap(px(16.))
                                             .items_start()
                                             .child(div().flex_1().child(self.progress_panel(cx)))
                                             .child(div().flex_1().child(self.surfaces_panel(cx))),

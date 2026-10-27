@@ -11,16 +11,16 @@ path = "src/lib.rs"
 doctest = false
 
 [dependencies]
+zkit-dither = { path = "../dither" }
+image.workspace = true
 gpui.workspace = true
 gpui-base = { path = "../component-base" }
 serde.workspace = true
 smallvec.workspace = true
 web-time.workspace = true
 
-[dev-dependencies]
-gpui = { workspace = true, features = ["test-support"] }
-
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
 env_logger.workspace = true
 gpui_platform = { workspace = true, features = ["font-kit", "wayland", "x11"] }
 
@@ -34,3 +34,11 @@ path = "examples/gallery.rs"
 
 [lints]
 workspace = true
+
+[[example]]
+name = "glass"
+path = "examples/glass.rs"
+
+[[example]]
+name = "dither"
+path = "examples/dither.rs"

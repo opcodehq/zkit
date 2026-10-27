@@ -51,9 +51,9 @@ impl ButtonSize {
 
     fn padding_x(self) -> Pixels {
         match self {
-            ButtonSize::Small => px(6.),
-            ButtonSize::Medium => px(8.),
-            ButtonSize::Large => px(12.),
+            ButtonSize::Small => px(9.),
+            ButtonSize::Medium => px(11.),
+            ButtonSize::Large => px(13.),
         }
     }
 
@@ -85,21 +85,21 @@ impl ButtonColors {
                 hover: colors.solid_hover,
                 active: colors.solid_hover,
                 foreground: colors.on_solid,
-                border: clear,
+                border: colors.solid,
             },
             ButtonVariant::Accent => Self {
                 background: colors.accent_strong,
                 hover: colors.accent_strong.opacity(0.9),
                 active: colors.accent_strong.opacity(0.82),
                 foreground: colors.on_accent,
-                border: clear,
+                border: colors.accent_strong,
             },
             ButtonVariant::Danger => Self {
                 background: colors.danger_strong,
                 hover: colors.danger_strong.opacity(0.9),
                 active: colors.danger_strong.opacity(0.82),
                 foreground: colors.on_danger,
-                border: clear,
+                border: colors.danger_strong,
             },
             ButtonVariant::Secondary => Self {
                 background: if selected {
@@ -110,17 +110,13 @@ impl ButtonColors {
                 hover: colors.surface_raised_hover,
                 active: colors.surface_raised_hover,
                 foreground: colors.text,
-                border: colors.border,
+                border: colors.border_strong,
             },
             ButtonVariant::Ghost => Self {
                 background: if selected { colors.selected } else { clear },
                 hover: colors.hover,
                 active: colors.active,
-                foreground: if selected {
-                    colors.text
-                } else {
-                    colors.text_muted
-                },
+                foreground: colors.text,
                 border: clear,
             },
         }
@@ -350,13 +346,27 @@ impl RenderOnce for Button {
         let inert = self.disabled || self.loading;
         let ring = theme.colors.focus_ring;
         let foreground = paint.foreground;
+        let resting_shadow = match self.variant {
+            ButtonVariant::Primary | ButtonVariant::Accent | ButtonVariant::Danger => {
+                theme.filled_shadow(paint.background)
+            }
+            ButtonVariant::Secondary => theme.control_shadow(),
+            ButtonVariant::Ghost => Vec::new(),
+        };
+        let focus_shadow = vec![gpui::BoxShadow {
+            color: ring.opacity(0.45),
+            offset: gpui::point(px(0.), px(0.)),
+            blur_radius: px(0.),
+            spread_radius: px(2.),
+            inset: false,
+        }];
         let accessible_label = self.accessible_label.or_else(|| self.label.clone());
         let (disabled, loading) = (self.disabled, self.loading);
 
         let leading = if self.loading {
             Some(
                 Spinner::new()
-                    .size(px(10.))
+                    .size(px(14.))
                     .color(foreground)
                     .into_any_element(),
             )
@@ -398,23 +408,24 @@ impl RenderOnce for Button {
             .when(self.icon_only, |this| this.w(height))
             .when(!self.icon_only, |this| this.px(self.size.padding_x()))
             .when(self.full_width, |this| this.w_full())
-            .rounded(theme.metrics.radius_md)
+            .rounded(theme.metrics.radius_lg)
             .border_1()
             .border_color(paint.border)
             .bg(paint.background)
+            .when(!disabled, |this| this.shadow(resting_shadow))
             .text_color(foreground)
             .text_size(self.size.text_size(theme))
             .font_weight(FontWeight::MEDIUM)
-            .line_height(px(16.))
+            .line_height(px(20.))
             .whitespace_nowrap()
             .overflow_hidden()
             .when(!inert, |this| {
                 this.cursor_pointer()
                     .hover(move |style| style.bg(paint.hover))
-                    .active(move |style| style.bg(paint.active))
+                    .active(move |style| style.bg(paint.active).shadow(Vec::new()))
             })
-            .when(disabled, |this| this.opacity(0.45))
-            .focus_visible(move |style| style.border_color(ring))
+            .when(disabled, |this| this.opacity(0.64))
+            .focus_visible(move |style| style.border_color(ring).shadow(focus_shadow))
             .when_some(
                 (!inert).then_some(self.on_click).flatten(),
                 |this, handler| this.on_click(move |event, window, cx| handler(event, window, cx)),
@@ -514,15 +525,17 @@ impl RenderOnce for Kbd {
         let mac = cfg!(target_os = "macos");
         div()
             .flex_none()
+            .flex()
+            .items_center()
+            .justify_center()
+            .h(px(20.))
+            .min_w(px(20.))
             .px(px(4.))
-            .rounded(theme.metrics.radius_sm)
-            .when(self.color.is_none(), |this| {
-                this.bg(theme.colors.hover)
-                    .border_1()
-                    .border_color(theme.colors.border)
-            })
+            .rounded(px(4.))
+            .when(self.color.is_none(), |this| this.bg(theme.colors.hover))
             .text_size(theme.metrics.text_xs)
-            .line_height(px(14.))
+            .font_weight(FontWeight::MEDIUM)
+            .line_height(px(16.))
             .text_color(self.color.unwrap_or(theme.colors.text_muted))
             .child(format_keystroke(&self.keystroke, mac))
     }

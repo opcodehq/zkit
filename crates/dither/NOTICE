@@ -1,0 +1,30 @@
+zkit-dither notices
+===================
+
+dithercn
+  https://dithercn.dev
+  https://github.com/opencoredev/dithercn
+  Copyright (c) 2026 Leo
+  Copyright (c) 2026 Shadcn Labs (startercn, which dithercn is based on)
+  MIT License. The full licence text is in LICENSE-MIT in this directory.
+
+  Adapted from dithercn: the 64 x 64 blue-noise threshold data
+  (src/blue-noise.bin), the ordered and error-diffusion dithering techniques,
+  the field-based approach to dithered surfaces, many of the example fields
+  (src/fields.rs), the dithered globe (src/globe.rs) and its encoded world land
+  mask (src/land.rs), and the loaders (src/loader.rs).
+
+dither-kit
+  https://tripwire.sh/dither-kit
+  By ripgrim. No licence is published with the registry source.
+
+  zkit's chart marks (src/chart.rs), generative avatars (src/avatar.rs) and the
+  GPUI dithered buttons follow dither-kit's design: gradient, hatched, dotted
+  and solid series fills, stacking, ribbon lines, radar charts, and symmetric
+  name-derived avatars with a hue per name. These are independent Rust
+  implementations; no dither-kit source code is included.
+
+Natural Earth
+  https://www.naturalearthdata.com
+  The world land mask is derived from Natural Earth 1:50m land polygons, which
+  are in the public domain.

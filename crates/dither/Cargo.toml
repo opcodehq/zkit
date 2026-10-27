@@ -1,0 +1,19 @@
+[package]
+name = "zkit-dither"
+version = "0.1.0"
+edition.workspace = true
+license = "MIT"
+description = "Portable dither fields, image conversion and exports for Zkit"
+publish = false
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[features]
+web = ["dep:wasm-bindgen"]
+
+[dependencies]
+wasm-bindgen = { workspace = true, optional = true }
+
+[lints]
+workspace = true

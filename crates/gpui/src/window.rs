@@ -4144,6 +4144,36 @@ impl Window {
         corner_radii: Corners<Pixels>,
         blur_radius: Pixels,
     ) {
+        self.paint_material(bounds, corner_radii, blur_radius, None);
+    }
+
+    /// Paint a native material beneath deferred content on macOS, with a GPU
+    /// backdrop-blur fallback elsewhere. Enable the scene overlay when opening
+    /// the window and put the surface in a deferred draw. Native surfaces share
+    /// one plane beneath overlay content; arbitrary interleaving is unsupported.
+    pub fn paint_native_material(
+        &mut self,
+        bounds: Bounds<Pixels>,
+        corner_radii: Corners<Pixels>,
+        blur_radius: Pixels,
+        material: crate::NativeMaterial,
+        appearance: WindowAppearance,
+    ) {
+        let dark = matches!(
+            appearance,
+            WindowAppearance::Dark | WindowAppearance::VibrantDark
+        );
+        let tag = material as u32 | if dark { 0x100 } else { 0x200 };
+        self.paint_material(bounds, corner_radii, blur_radius, Some(tag));
+    }
+
+    fn paint_material(
+        &mut self,
+        bounds: Bounds<Pixels>,
+        corner_radii: Corners<Pixels>,
+        blur_radius: Pixels,
+        native_material: Option<u32>,
+    ) {
         self.invalidator.debug_assert_paint();
         let scale_factor = self.scale_factor();
         let content_mask = self.content_mask().scale(scale_factor);
@@ -4162,6 +4192,7 @@ impl Window {
             pad: 0,
         });
         self.next_frame.scene.insert_backdrop_blur(BackdropBlur {
+            native_material: native_material.unwrap_or(0),
             order: 0,
             blur_radius: blur_radius.scale(scale_factor),
             bounds: bounds.scale(scale_factor),

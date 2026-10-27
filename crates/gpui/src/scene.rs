@@ -660,6 +660,17 @@ impl From<Underline> for Primitive {
     }
 }
 
+/// System material requested for a deferred GPUI surface.
+/// Native materials are currently implemented by the macOS overlay compositor.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[repr(u32)]
+pub enum NativeMaterial {
+    /// Liquid Glass when available, otherwise AppKit's popover vibrancy.
+    Glass = 1,
+    /// AppKit's sidebar vibrancy material.
+    Sidebar = 2,
+}
+
 /// A within-window backdrop blur region: the renderer snapshots everything
 /// painted below this order and paints it back gaussian-blurred inside the
 /// rounded bounds (frosted-glass popovers). Supported by macOS Metal,
@@ -669,6 +680,10 @@ impl From<Underline> for Primitive {
 #[repr(C)]
 #[expect(missing_docs)]
 pub struct BackdropBlur {
+    /// AppKit material tag: low byte 0 = GPU blur, 1 = glass, 2 = sidebar.
+    /// Appearance bits: 0x100 = dark, 0x200 = light, 0 = follow system.
+    /// Kept as a u32 because this structure is also consumed by Metal.
+    pub native_material: u32,
     pub order: DrawOrder,
     pub blur_radius: ScaledPixels,
     pub bounds: Bounds<ScaledPixels>,
@@ -1177,12 +1192,37 @@ mod tests {
     fn paint_blur(scene: &mut Scene) {
         scene.insert_primitive(shadow(crate::transparent_black()));
         scene.insert_backdrop_blur(BackdropBlur {
+            native_material: 0,
             order: 0,
             blur_radius: ScaledPixels(10.),
             bounds: bounds(),
             content_mask: ContentMask { bounds: bounds() },
             corner_radii: Corners::default(),
         });
+    }
+
+    #[test]
+    fn native_material_survives_cached_scene_replay_and_clears() {
+        let mut original = Scene::default();
+        paint_blur(&mut original);
+        // Update the paint operation as well as the sorted region list, as
+        // Window::paint_native_material does at insertion time.
+        let mut region = original.backdrop_blurs[0];
+        region.native_material = NativeMaterial::Glass as u32;
+        original.clear();
+        original.insert_backdrop_blur(region);
+        let mut replayed = Scene::default();
+        replayed.replay(0..original.len(), &original);
+        replayed.finish();
+        assert_eq!(replayed.backdrop_blurs.len(), 1);
+        assert_eq!(
+            replayed.backdrop_blurs[0].native_material,
+            NativeMaterial::Glass as u32
+        );
+        assert_eq!(replayed.backdrop_blurs[0].bounds, region.bounds);
+        replayed.clear();
+        assert!(replayed.backdrop_blurs.is_empty());
+        assert!(replayed.is_empty());
     }
 
     #[test]
@@ -1245,6 +1285,7 @@ mod tests {
         // shadow splitter. Quads on either side must remain separate batches.
         scene.insert_primitive(quad);
         scene.insert_backdrop_blur(BackdropBlur {
+            native_material: 0,
             order: 0,
             blur_radius: ScaledPixels(10.),
             bounds: bounds(),

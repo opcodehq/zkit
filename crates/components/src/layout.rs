@@ -120,19 +120,19 @@ impl RenderOnce for Badge {
         div()
             .flex_none()
             .px(px(5.))
-            .min_w(px(16.))
-            .h(px(16.))
+            .min_w(px(20.))
+            .h(px(20.))
             .flex()
             .items_center()
             .justify_center()
-            .rounded(px(8.))
+            .rounded(px(6.))
             .text_size(theme.metrics.text_xs)
             .font_weight(FontWeight::MEDIUM)
             .map(|this| {
                 if self.accent {
                     this.bg(c.accent_wash).text_color(c.accent)
                 } else {
-                    this.bg(c.hover).text_color(c.text_muted)
+                    this.bg(c.hover).text_color(c.text)
                 }
             })
             .child(self.label)
@@ -201,7 +201,8 @@ impl RenderOnce for Toolbar {
 // Panel
 // ---------------------------------------------------------------------------
 
-/// A titled region: compact header with trailing actions over a body.
+/// A titled region framed in a muted band: the title and actions sit in the
+/// band, the body on an inset plate, and an optional footer below it.
 ///
 /// The body scrolls vertically when its content overflows.
 #[derive(IntoElement)]
@@ -211,6 +212,7 @@ pub struct Panel {
     actions: SmallVec<[AnyElement; 2]>,
     footer: Option<AnyElement>,
     bordered: bool,
+    plate: bool,
     style: StyleRefinement,
     children: SmallVec<[AnyElement; 2]>,
 }
@@ -223,6 +225,7 @@ impl Panel {
             actions: SmallVec::new(),
             footer: None,
             bordered: true,
+            plate: true,
             style: StyleRefinement::default(),
             children: SmallVec::new(),
         }
@@ -248,6 +251,13 @@ impl Panel {
     /// Drop the outer border and radius, for panels docked edge to edge.
     pub fn borderless(mut self) -> Self {
         self.bordered = false;
+        self
+    }
+
+    /// Show the children directly in the frame, without the inset plate:
+    /// for a [`Card`] that is its own plate.
+    pub fn plain_body(mut self) -> Self {
+        self.plate = false;
         self
     }
 }
@@ -277,23 +287,17 @@ impl RenderOnce for Panel {
             .flex()
             .flex_col()
             .min_h_0()
-            .overflow_hidden()
-            .bg(c.background)
             .when(self.bordered, |this| {
-                this.border_1()
-                    .border_color(c.border)
-                    .rounded(theme.metrics.radius_lg)
+                this.p(px(4.)).bg(c.hover).rounded(theme.metrics.radius_xl)
             })
             .when(has_header, |this| {
                 this.child(
                     h_stack()
                         .flex_none()
-                        .h(theme.metrics.panel_header_height)
-                        .pl(px(10.))
+                        .h(px(40.))
+                        .pl(px(16.))
                         .pr(px(4.))
-                        .gap(px(2.))
-                        .border_b_1()
-                        .border_color(c.border)
+                        .gap(px(4.))
                         .children(self.title.map(|title| {
                             div()
                                 .id("panel-title")
@@ -302,7 +306,7 @@ impl RenderOnce for Panel {
                                 .aria_label(title.clone())
                                 .flex_1()
                                 .truncate()
-                                .text_size(theme.metrics.text_sm)
+                                .text_size(theme.metrics.text_md)
                                 .font_weight(FontWeight::SEMIBOLD)
                                 .text_color(c.text)
                                 .child(title)
@@ -317,17 +321,162 @@ impl RenderOnce for Panel {
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
+                    .when(self.plate, |this| this.bg(c.background))
+                    .when(self.bordered && self.plate, |this| {
+                        this.border_1()
+                            .border_color(c.border)
+                            .rounded(theme.metrics.radius_xl - px(4.))
+                            .shadow(theme.control_shadow())
+                    })
                     .children(self.children),
             )
             .children(self.footer.map(|footer| {
                 div()
                     .flex_none()
-                    .border_t_1()
-                    .border_color(c.border)
-                    .px(px(10.))
-                    .py(px(6.))
+                    .px(px(16.))
+                    .py(px(10.))
+                    .text_size(theme.metrics.text_sm)
+                    .text_color(c.text_muted)
                     .child(footer)
             }))
+            .refine_style(&self.style)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Card
+// ---------------------------------------------------------------------------
+
+/// A content card: header with title, description and an action, a body
+/// and an optional footer. Place it alone or inside a [`Panel`] frame.
+#[derive(IntoElement)]
+pub struct Card {
+    id: ElementId,
+    title: Option<SharedString>,
+    description: Option<SharedString>,
+    action: Option<AnyElement>,
+    footer: SmallVec<[AnyElement; 2]>,
+    style: StyleRefinement,
+    children: SmallVec<[AnyElement; 2]>,
+}
+
+impl Card {
+    pub fn new(id: impl Into<ElementId>) -> Self {
+        Self {
+            id: id.into(),
+            title: None,
+            description: None,
+            action: None,
+            footer: SmallVec::new(),
+            style: StyleRefinement::default(),
+            children: SmallVec::new(),
+        }
+    }
+
+    /// Heading; also names the card for assistive technology.
+    pub fn title(mut self, title: impl Into<SharedString>) -> Self {
+        self.title = Some(title.into());
+        self
+    }
+
+    pub fn description(mut self, description: impl Into<SharedString>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    /// A control aligned to the header's trailing edge.
+    pub fn action(mut self, action: impl IntoElement) -> Self {
+        self.action = Some(action.into_any_element());
+        self
+    }
+
+    /// Footer content, laid out in a row in insertion order.
+    pub fn footer(mut self, footer: impl IntoElement) -> Self {
+        self.footer.push(footer.into_any_element());
+        self
+    }
+}
+
+impl Styled for Card {
+    fn style(&mut self) -> &mut StyleRefinement {
+        &mut self.style
+    }
+}
+
+impl ParentElement for Card {
+    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+        self.children.extend(elements);
+    }
+}
+
+impl RenderOnce for Card {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let theme = cx.theme();
+        let c = &theme.colors;
+        let has_header =
+            self.title.is_some() || self.description.is_some() || self.action.is_some();
+        let has_body = !self.children.is_empty();
+        div()
+            .id(self.id)
+            .role(Role::Group)
+            .when_some(self.title.clone(), |this, title| this.aria_label(title))
+            .flex()
+            .flex_col()
+            .bg(c.surface_raised)
+            .border_1()
+            .border_color(c.border_strong)
+            .rounded(theme.metrics.radius_xl)
+            .shadow(theme.control_shadow())
+            .text_size(theme.metrics.text_md)
+            .text_color(c.text)
+            .when(has_header, |this| {
+                this.child(
+                    div()
+                        .flex()
+                        .items_start()
+                        .gap(px(16.))
+                        .p(px(24.))
+                        .when(has_body, |this| this.pb(px(16.)))
+                        .child(
+                            div()
+                                .flex_1()
+                                .flex()
+                                .flex_col()
+                                .gap(px(6.))
+                                .children(self.title.map(|title| {
+                                    div()
+                                        .text_size(theme.metrics.text_lg)
+                                        .line_height(px(20.))
+                                        .font_weight(FontWeight::SEMIBOLD)
+                                        .child(title)
+                                }))
+                                .children(self.description.map(|description| {
+                                    div().text_color(c.text_muted).child(description)
+                                })),
+                        )
+                        .children(self.action),
+                )
+            })
+            .when(has_body, |this| {
+                this.child(
+                    div()
+                        .flex_1()
+                        .px(px(24.))
+                        .pb(px(24.))
+                        .when(!has_header, |this| this.pt(px(24.)))
+                        .children(self.children),
+                )
+            })
+            .when(!self.footer.is_empty(), |this| {
+                this.child(
+                    h_stack()
+                        .gap(px(8.))
+                        .px(px(24.))
+                        .pb(px(24.))
+                        .when(!has_header && !has_body, |this| this.pt(px(24.)))
+                        .children(self.footer),
+                )
+            })
             .refine_style(&self.style)
     }
 }
@@ -692,6 +841,7 @@ impl RenderOnce for SidebarItem {
             .h(theme.metrics.control_height_md)
             .px(px(8.))
             .rounded(theme.metrics.radius_md)
+            .font_weight(FontWeight::MEDIUM)
             .border_1()
             .border_color(gpui::transparent_black())
             .text_size(theme.metrics.text_md)

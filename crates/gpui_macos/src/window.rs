@@ -82,6 +82,8 @@ static mut PANEL_CLASS: *const Class = ptr::null();
 static mut VIEW_CLASS: *const Class = ptr::null();
 static mut OVERLAY_VIEW_CLASS: *const Class = ptr::null();
 static mut BACKDROP_VIEW_CLASS: *const Class = ptr::null();
+static mut GLASS_VIEW_CLASS: *const Class = ptr::null();
+static mut VIBRANCY_VIEW_CLASS: *const Class = ptr::null();
 static mut BLURRED_VIEW_CLASS: *const Class = ptr::null();
 
 #[allow(non_upper_case_globals)]
@@ -384,6 +386,28 @@ unsafe fn build_classes() {
             );
             decl.register()
         };
+        // Public AppKit material views never participate in input handling:
+        // GPUI owns focus, accessibility and pointer routing for their content.
+        extern "C" fn material_hit_test(_: &Object, _: Sel, _: NSPoint) -> id {
+            nil
+        }
+        VIBRANCY_VIEW_CLASS = {
+            let mut decl = ClassDecl::new("GPUIMaterialView", class!(NSVisualEffectView)).unwrap();
+            decl.add_method(
+                sel!(hitTest:),
+                material_hit_test as extern "C" fn(&Object, Sel, NSPoint) -> id,
+            );
+            decl.register()
+        };
+        // Runtime lookup keeps binaries launchable on macOS before Liquid Glass.
+        if let Some(class) = Class::get("NSGlassEffectView") {
+            let mut decl = ClassDecl::new("GPUIGlassView", class).unwrap();
+            decl.add_method(
+                sel!(hitTest:),
+                material_hit_test as extern "C" fn(&Object, Sel, NSPoint) -> id,
+            );
+            GLASS_VIEW_CLASS = decl.register();
+        }
         BLURRED_VIEW_CLASS = {
             let mut decl = ClassDecl::new("BlurredView", class!(NSVisualEffectView)).unwrap();
             decl.add_method(
@@ -585,7 +609,7 @@ struct MacWindowState {
     renderer: renderer::Renderer,
     overlay_renderer: Option<renderer::Renderer>,
     overlay_view: Option<NonNull<Object>>,
-    overlay_backdrops: Vec<(NonNull<Object>, f32)>,
+    overlay_backdrops: Vec<(NonNull<Object>, f32, u32)>,
     overlay_capture_input: Arc<AtomicBool>,
     overlay_size: Option<(Size<Pixels>, f32)>,
     request_frame_callback: Option<Box<dyn FnMut(RequestFrameOptions)>>,
@@ -1981,21 +2005,72 @@ impl PlatformWindow for MacWindow {
             let parent = state.native_view.as_ptr();
             let plane = state.overlay_view.unwrap().as_ptr();
             for (index, blur) in overlay.backdrop_blurs.iter().enumerate() {
-                let view = if let Some((view, _)) = state.overlay_backdrops.get(index) {
+                // A cached slot can change material as a surface is toggled.
+                if state
+                    .overlay_backdrops
+                    .get(index)
+                    .is_some_and(|entry| entry.2 != blur.native_material)
+                {
+                    let old = state.overlay_backdrops.remove(index).0.as_ptr();
+                    let _: () = msg_send![old, removeFromSuperview];
+                }
+                let view = if let Some((view, _, _)) = state
+                    .overlay_backdrops
+                    .get(index)
+                    .filter(|entry| entry.2 == blur.native_material)
+                {
                     view.as_ptr()
                 } else {
-                    let view: id = msg_send![BACKDROP_VIEW_CLASS, alloc];
+                    let material_class = match blur.native_material & 0xff {
+                        1 if !GLASS_VIEW_CLASS.is_null() => GLASS_VIEW_CLASS,
+                        1 | 2 => VIBRANCY_VIEW_CLASS,
+                        _ => BACKDROP_VIEW_CLASS,
+                    };
+                    let view: id = msg_send![material_class, alloc];
                     let view = NSView::initWithFrame_(
                         view,
                         NSRect::new(NSPoint::new(0., 0.), NSSize::new(0., 0.)),
                     );
                     view.setWantsLayer(YES);
+                    if blur.native_material != 0 && material_class == VIBRANCY_VIEW_CLASS {
+                        let material = match blur.native_material & 0xff {
+                            2 => NSVisualEffectMaterial::Sidebar,
+                            _ => NSVisualEffectMaterial::Popover,
+                        };
+                        NSVisualEffectView::setMaterial_(view, material);
+                        NSVisualEffectView::setBlendingMode_(
+                            view,
+                            NSVisualEffectBlendingMode::WithinWindow,
+                        );
+                        NSVisualEffectView::setState_(
+                            view,
+                            NSVisualEffectState::FollowsWindowActiveState,
+                        );
+                    }
                     parent.addSubview_(view.autorelease());
-                    state
-                        .overlay_backdrops
-                        .push((NonNull::new(view).unwrap(), blur.blur_radius.0));
+                    state.overlay_backdrops.insert(
+                        index,
+                        (
+                            NonNull::new(view).unwrap(),
+                            blur.blur_radius.0,
+                            blur.native_material,
+                        ),
+                    );
                     view
                 };
+                if blur.native_material != 0 {
+                    let name = match blur.native_material & 0x300 {
+                        0x100 => crate::window_appearance::NSAppearanceNameDarkAqua,
+                        0x200 => crate::window_appearance::NSAppearanceNameAqua,
+                        _ => nil,
+                    };
+                    let appearance: id = if name.is_null() {
+                        nil
+                    } else {
+                        msg_send![class!(NSAppearance), appearanceNamed: name]
+                    };
+                    let _: () = msg_send![view, setAppearance: appearance];
+                }
                 let bounds = blur.bounds.intersect(&blur.content_mask.bounds);
                 let x = (bounds.origin.x.0 / scale) as f64;
                 let width = (bounds.size.width.0 / scale).max(0.) as f64;
@@ -2007,7 +2082,9 @@ impl PlatformWindow for MacWindow {
                 *peak = peak.max(blur.blur_radius.0);
                 let native_radius = (blur.blur_radius.0 / scale) as f64;
                 let layer: id = msg_send![view, layer];
-                if *(*view).get_ivar::<f64>("blurRadius") != native_radius {
+                if blur.native_material == 0
+                    && *(*view).get_ivar::<f64>("blurRadius") != native_radius
+                {
                     (*view).set_ivar("blurRadius", native_radius);
                     // Filters are copied into the render tree. Updating a
                     // nested filter value alone does not invalidate that copy.
@@ -2024,16 +2101,32 @@ impl PlatformWindow for MacWindow {
                     let _: () = msg_send![layer, setFilters: filters];
                 }
                 let alpha = (blur.blur_radius.0 / peak.max(1.0)).clamp(0.0, 1.0) as f64;
-                let _: () = msg_send![view, setAlphaValue: alpha];
+                let _: () = msg_send![view, setAlphaValue: if blur.native_material != 0 { 1.0f64 } else { alpha }];
                 let layer: id = msg_send![view, layer];
                 let radius = (blur.corner_radii.top_left.0 / scale) as f64;
+                if blur.native_material & 0xff == gpui::NativeMaterial::Glass as u32
+                    && !GLASS_VIEW_CLASS.is_null()
+                {
+                    let _: () = msg_send![view, setCornerRadius: radius];
+                }
                 let _: () = msg_send![layer, setCornerRadius: radius];
                 let _: () = msg_send![layer, setMasksToBounds: YES];
                 let _: () = msg_send![parent, addSubview: view positioned: NSWindowOrderingMode::NSWindowBelow relativeTo: plane];
             }
         }
+        unsafe {
+            while state.overlay_backdrops.len() > overlay.backdrop_blurs.len() {
+                let view = state.overlay_backdrops.pop().unwrap().0.as_ptr();
+                let _: () = msg_send![view, removeFromSuperview];
+            }
+        }
         // Keep the Metal blur too: overlapping GPUI popovers still need to
         // blur earlier overlay content, while native effects supply the page.
+        // Native materials supply their own background. Blurring the base
+        // texture again in the overlay would cover the system effect.
+        overlay
+            .backdrop_blurs
+            .retain(|blur| blur.native_material == 0);
         state.renderer.draw(&base);
         if visible {
             state.overlay_renderer.as_mut().unwrap().draw(&overlay);
@@ -2274,7 +2367,7 @@ fn get_scale_factor(native_window: id) -> f32 {
     };
 
     // We are not certain what triggers this, but it seems that sometimes
-// Source lineage is retained in the repository NOTICE.
+    // Source lineage is retained in the repository NOTICE.
     // It seems most likely that this would happen if the window has no screen
     // (if it is off-screen), though we'd expect to see viewDidChangeBackingProperties before
     // it was rendered for real.

@@ -2467,6 +2467,7 @@ mod backdrop_blur_tests {
             pad: 0,
         });
         scene.insert_backdrop_blur(BackdropBlur {
+            native_material: 0,
             order: 0,
             blur_radius: ScaledPixels(radius),
             bounds: blur_bounds,

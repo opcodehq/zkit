@@ -9141,10 +9141,19 @@ dependencies = [
  "gpui",
  "gpui-base",
  "gpui_platform",
+ "image",
  "serde",
  "smallvec",
  "wasm-bindgen",
  "web-time",
+ "zkit-dither",
+]
+
+[[package]]
+name = "zkit-dither"
+version = "0.1.0"
+dependencies = [
+ "wasm-bindgen",
 ]
 
 [[package]]

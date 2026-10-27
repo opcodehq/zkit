@@ -299,3 +299,45 @@ fn loading_button_ignores_activation_until_work_finishes(cx: &mut TestAppContext
     click(cx, "save");
     assert_eq!(&*log.borrow(), &["save".to_string()]);
 }
+
+struct GlassHarness {
+    log: Log,
+    opaque: bool,
+}
+
+impl Render for GlassHarness {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        Root::new().child(
+            zkit_components::GlassSurface::new()
+                .opaque(self.opaque)
+                .w(px(300.))
+                .h(px(140.))
+                .child(labeled(
+                    "glass-toggle",
+                    Button::new("glass-toggle", "Toggle material").on_click(cx.listener(
+                        |this, _, _, cx| {
+                            this.opaque = !this.opaque;
+                            this.log
+                                .borrow_mut()
+                                .push(format!("opaque={}", this.opaque));
+                            cx.notify();
+                        },
+                    )),
+                )),
+        )
+    }
+}
+
+#[gpui::test]
+fn glass_surface_keeps_pointer_and_keyboard_activation(cx: &mut TestAppContext) {
+    let log = Log::default();
+    let cx = open_window(cx, {
+        let log = log.clone();
+        move |_, _| GlassHarness { log, opaque: false }
+    });
+    click(cx, "glass-toggle");
+    redraw(cx);
+    assert_eq!(&*log.borrow(), &["opaque=true"]);
+    press(cx, "enter");
+    assert_eq!(&*log.borrow(), &["opaque=true", "opaque=false"]);
+}

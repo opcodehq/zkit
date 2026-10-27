@@ -161,13 +161,15 @@ pub struct Colors {
 
     // ---- misc ----
     pub text_selection: Hsla,
+    /// Data series, in order: blue, purple, green, orange, pink.
+    pub chart: [Hsla; 5],
     /// Modal backdrop.
     pub scrim: Hsla,
     pub shadow: Hsla,
 }
 
-/// Layout and typography scale. Compact by default: this is a developer
-/// tool, so controls favor density over touch targets.
+/// Layout and typography scale: 32 px controls, 10 px corners on controls
+/// and floating surfaces, 18 px on dialogs and content cards.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Metrics {
     pub radius_sm: Pixels,
@@ -175,6 +177,8 @@ pub struct Metrics {
     pub radius_lg: Pixels,
     /// Floating card corners (popovers, menus).
     pub radius_card: Pixels,
+    /// Large plate corners (dialogs, content cards, frames).
+    pub radius_xl: Pixels,
     /// Inset between a floating card's border and its rows.
     pub card_inset: Pixels,
 
@@ -203,21 +207,22 @@ impl Metrics {
 impl Default for Metrics {
     fn default() -> Self {
         Self {
-            radius_sm: px(4.),
-            radius_md: px(6.),
-            radius_lg: px(8.),
+            radius_sm: px(6.),
+            radius_md: px(8.),
+            radius_lg: px(10.),
             radius_card: px(10.),
+            radius_xl: px(18.),
             card_inset: px(4.),
-            control_height_sm: px(22.),
-            control_height_md: px(26.),
-            control_height_lg: px(30.),
-            text_xs: px(11.),
-            text_sm: px(12.),
-            text_md: px(13.),
-            text_lg: px(15.),
-            sidebar_width: px(232.),
-            panel_header_height: px(32.),
-            toolbar_height: px(36.),
+            control_height_sm: px(28.),
+            control_height_md: px(32.),
+            control_height_lg: px(36.),
+            text_xs: px(12.),
+            text_sm: px(13.),
+            text_md: px(14.),
+            text_lg: px(18.),
+            sidebar_width: px(240.),
+            panel_header_height: px(44.),
+            toolbar_height: px(44.),
         }
     }
 }
@@ -257,24 +262,24 @@ impl Theme {
             appearance: Appearance::Dark,
             accent,
             colors: Colors {
-                background: grey(0x0a),
-                surface: grey(0x10),
-                surface_raised: neutral(0.27),
-                surface_raised_hover: neutral(0.31),
-                surface_dialog: grey(0x16),
-                surface_overlay: grey(0x1a),
-                hover: hsla(0., 0., 0.92, 0.08),
-                active: hsla(0., 0., 0.92, 0.13),
-                selected: hsla(0., 0., 0.92, 0.10),
-                border: hsla(0., 0., 1., 0.08),
-                border_strong: hsla(0., 0., 1., 0.14),
+                background: grey(0x16),
+                surface: grey(0x11),
+                surface_raised: grey(0x1b),
+                surface_raised_hover: grey(0x24),
+                surface_dialog: grey(0x1b),
+                surface_overlay: grey(0x1b),
+                hover: hsla(0., 0., 1., 0.05),
+                active: hsla(0., 0., 1., 0.08),
+                selected: hsla(0., 0., 1., 0.07),
+                border: hsla(0., 0., 1., 0.07),
+                border_strong: hsla(0., 0., 1., 0.10),
                 focus_ring: primary,
-                text: neutral(0.922),
-                text_muted: neutral(0.708),
-                text_faint: neutral(0.60),
-                solid: neutral(0.922),
-                solid_hover: neutral(0.985),
-                on_solid: grey(0x0e),
+                text: neutral(0.97),
+                text_muted: neutral(0.70),
+                text_faint: neutral(0.58),
+                solid: neutral(0.97),
+                solid_hover: neutral(0.90),
+                on_solid: neutral(0.269),
                 accent: primary,
                 accent_strong: strong,
                 accent_wash: primary.opacity(0.16),
@@ -286,7 +291,14 @@ impl Theme {
                 warning: oklch(0.828, 0.189, 84.429),
                 success: oklch(0.765, 0.177, 163.223),
                 text_selection: primary.opacity(0.35),
-                scrim: hsla(0., 0., 0., 0.55),
+                chart: [
+                    oklch(0.68, 0.17, 252.),
+                    oklch(0.63, 0.2, 293.),
+                    oklch(0.75, 0.18, 152.),
+                    oklch(0.77, 0.16, 62.),
+                    oklch(0.71, 0.19, 355.),
+                ],
+                scrim: hsla(0., 0., 0., 0.48),
                 shadow: hsla(0., 0., 0., 0.45),
             },
             metrics: Metrics::default(),
@@ -304,22 +316,22 @@ impl Theme {
             accent,
             colors: Colors {
                 background: grey(0xff),
-                surface: neutral(0.968),
-                surface_raised: neutral(0.940),
-                surface_raised_hover: neutral(0.905),
+                surface: neutral(0.985),
+                surface_raised: grey(0xff),
+                surface_raised_hover: neutral(0.97),
                 surface_dialog: grey(0xff),
                 surface_overlay: grey(0xff),
-                hover: hsla(0., 0., 0.10, 0.06),
-                active: hsla(0., 0., 0.10, 0.10),
-                selected: hsla(0., 0., 0.10, 0.08),
-                border: hsla(0., 0., 0., 0.11),
-                border_strong: hsla(0., 0., 0., 0.18),
+                hover: hsla(0., 0., 0., 0.04),
+                active: hsla(0., 0., 0., 0.07),
+                selected: hsla(0., 0., 0., 0.055),
+                border: hsla(0., 0., 0., 0.08),
+                border_strong: hsla(0., 0., 0., 0.12),
                 focus_ring: primary,
-                text: neutral(0.25),
-                text_muted: neutral(0.439),
-                text_faint: neutral(0.53),
-                solid: neutral(0.205),
-                solid_hover: neutral(0.30),
+                text: neutral(0.269),
+                text_muted: neutral(0.48),
+                text_faint: neutral(0.60),
+                solid: neutral(0.269),
+                solid_hover: neutral(0.33),
                 on_solid: neutral(0.985),
                 accent: primary,
                 accent_strong: strong,
@@ -332,7 +344,14 @@ impl Theme {
                 warning: oklch(0.555, 0.163, 48.998),
                 success: oklch(0.596, 0.145, 163.225),
                 text_selection: primary.opacity(0.24),
-                scrim: hsla(0., 0., 0., 0.28),
+                chart: [
+                    oklch(0.58, 0.19, 255.),
+                    oklch(0.54, 0.22, 293.),
+                    oklch(0.6, 0.16, 152.),
+                    oklch(0.66, 0.17, 55.),
+                    oklch(0.58, 0.21, 355.),
+                ],
+                scrim: hsla(0., 0., 0., 0.32),
                 shadow: hsla(0., 0., 0., 0.14),
             },
             metrics: Metrics::default(),
@@ -391,28 +410,67 @@ impl Theme {
         tokens.shadow = gpui_base::ShadowTokens::elevations(c.shadow);
     }
 
-    /// Shadow for floating cards (popovers, menus, dialogs).
+    /// Shadow for floating cards (popovers, menus, dialogs): a soft lift
+    /// plus a one-pixel edge below (above in dark, where light comes from
+    /// the surface itself).
     pub fn overlay_shadow(&self) -> Vec<BoxShadow> {
+        let dark = self.appearance.is_dark();
         vec![
-            BoxShadow {
-                color: self.colors.shadow,
-                offset: point(px(0.), px(8.)),
-                blur_radius: px(24.),
-                spread_radius: px(-4.),
-                inset: false,
-            },
-            BoxShadow {
-                color: self.colors.shadow.opacity(0.5),
-                offset: point(px(0.), px(1.)),
-                blur_radius: px(2.),
-                spread_radius: px(0.),
-                inset: false,
-            },
+            shadow(
+                self.colors.shadow.opacity(if dark { 0.5 } else { 0.35 }),
+                10.,
+                15.,
+                -3.,
+                false,
+            ),
+            shadow(
+                self.colors.shadow.opacity(if dark { 0.4 } else { 0.25 }),
+                4.,
+                6.,
+                -4.,
+                false,
+            ),
+            self.edge(),
         ]
+    }
+
+    /// Resting shadow for bordered controls and content cards.
+    pub fn control_shadow(&self) -> Vec<BoxShadow> {
+        vec![
+            shadow(self.colors.shadow.opacity(0.35), 1., 2., 0., false),
+            self.edge(),
+        ]
+    }
+
+    /// Top highlight and lift for filled buttons (solid, accent, danger).
+    pub fn filled_shadow(&self, fill: Hsla) -> Vec<BoxShadow> {
+        vec![
+            shadow(hsla(0., 0., 1., 0.16), 1., 0., 0., true),
+            shadow(fill.opacity(0.24), 1., 2., 0., false),
+        ]
+    }
+
+    /// A hairline that separates a plate from the plane beneath: dark below
+    /// in light, faint white above in dark.
+    fn edge(&self) -> BoxShadow {
+        if self.appearance.is_dark() {
+            shadow(hsla(0., 0., 1., 0.06), 1., 0., 0., true)
+        } else {
+            shadow(hsla(0., 0., 0., 0.04), 1., 0., 0., false)
+        }
     }
 }
 
-/// Read access to the active [`Theme`] from any app context.
+fn shadow(color: Hsla, y: f32, blur: f32, spread: f32, inset: bool) -> BoxShadow {
+    BoxShadow {
+        color,
+        offset: point(px(0.), px(y)),
+        blur_radius: px(blur),
+        spread_radius: px(spread),
+        inset,
+    }
+}
+
 pub trait ActiveTheme {
     fn theme(&self) -> &Theme;
 }

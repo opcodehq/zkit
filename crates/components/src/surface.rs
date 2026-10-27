@@ -51,7 +51,7 @@ pub fn card(theme: &Theme) -> Div {
         .bg(c.surface_overlay)
         .border_1()
         .border_color(c.border_strong)
-        .rounded(m.radius_card)
+        .rounded(m.radius_lg)
         .shadow(theme.overlay_shadow())
         .overflow_hidden()
         .text_size(m.text_md)
@@ -344,17 +344,15 @@ impl RenderOnce for Menu {
                 }
                 MenuRow::Heading(label) => div()
                     .px(px(8.))
-                    .pt(px(6.))
-                    .pb(px(2.))
+                    .py(px(6.))
                     .text_size(theme.metrics.text_xs)
                     .font_weight(FontWeight::MEDIUM)
-                    .text_color(theme.colors.text_faint)
+                    .text_color(theme.colors.text_muted)
                     .child(label)
                     .into_any_element(),
-                // Full-bleed: cancel the card inset so the rule spans the card.
                 MenuRow::Separator => div()
-                    .mx(-theme.metrics.card_inset)
-                    .my(px(3.))
+                    .mx(px(8.))
+                    .my(px(4.))
                     .h(px(1.))
                     .bg(theme.colors.border)
                     .into_any_element(),
@@ -473,14 +471,16 @@ impl RenderOnce for MenuItem {
             .disabled(disabled)
             .when(disabled, |this| {
                 this.a11y_synthetic_children(|tree| tree.parent_node().set_disabled())
-                    .opacity(0.45)
+                    .opacity(0.64)
             })
             .flex()
             .items_center()
             .gap(px(8.))
-            .h(px(26.))
+            .min_h(px(28.))
             .px(px(8.))
-            .rounded(theme.metrics.card_row_radius())
+            .py(px(4.))
+            .rounded(theme.metrics.radius_sm)
+            .text_size(theme.metrics.text_md)
             .text_color(text)
             .when(!disabled, |this| {
                 this.cursor_pointer()
@@ -516,7 +516,10 @@ impl RenderOnce for MenuItem {
                 )
             })
             .child(div().flex_1().min_w_0().truncate().child(self.label))
-            .children(self.shortcut.map(Kbd::new))
+            .children(
+                self.shortcut
+                    .map(|keys| Kbd::new(keys).muted_on(c.text_faint)),
+            )
     }
 }
 
@@ -565,7 +568,7 @@ impl Dialog {
             focus: disclosure.focus_handle().clone(),
             title: None,
             description: None,
-            width: px(420.),
+            width: px(480.),
             close_button: true,
             close_on_backdrop: true,
             footer: SmallVec::new(),
@@ -650,39 +653,38 @@ impl RenderOnce for Dialog {
         let on_close = dismiss(&self.on_dismiss, DismissReason::CloseButton);
         let close_on_backdrop = self.close_on_backdrop;
 
-        let header = (self.title.is_some() || self.close_button).then(|| {
+        let has_header = self.title.is_some() || self.description.is_some();
+        let header = has_header.then(|| {
             div()
                 .flex()
-                .items_start()
+                .flex_col()
                 .gap(px(8.))
-                .child(
+                .p(px(24.))
+                .when(self.close_button, |this| this.pr(px(48.)))
+                .children(self.title.clone().map(|title| {
                     div()
-                        .flex_1()
-                        .flex()
-                        .flex_col()
-                        .gap(px(4.))
-                        .children(self.title.clone().map(|title| {
-                            div()
-                                .text_size(theme.metrics.text_lg)
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .text_color(c.text)
-                                .child(title)
-                        }))
-                        .children(self.description.clone().map(|description| {
-                            div()
-                                .text_size(theme.metrics.text_md)
-                                .text_color(c.text_muted)
-                                .child(description)
-                        })),
-                )
-                .when(self.close_button, |this| {
-                    this.child(
-                        Button::icon("dialog-close", "✕", "Close dialog")
-                            .small()
-                            .on_click(move |_, window, cx| on_close(window, cx)),
-                    )
-                })
+                        .text_size(px(20.))
+                        .line_height(px(22.))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(c.text)
+                        .child(title)
+                }))
+                .children(self.description.clone().map(|description| {
+                    div()
+                        .text_size(theme.metrics.text_md)
+                        .line_height(px(20.))
+                        .text_color(c.text_muted)
+                        .child(description)
+                }))
         });
+        let close = self.close_button.then(|| {
+            div().absolute().top(px(8.)).right(px(8.)).child(
+                Button::icon("dialog-close", "✕", "Close dialog")
+                    .ghost()
+                    .on_click(move |_, window, cx| on_close(window, cx)),
+            )
+        });
+        let footer_radius = theme.metrics.radius_xl - px(1.);
 
         let panel = div()
             .id("dialog")
@@ -699,24 +701,45 @@ impl RenderOnce for Dialog {
             .w(self.width)
             .max_w(viewport.width - px(32.))
             .max_h(viewport.height - px(64.))
+            .relative()
             .flex()
             .flex_col()
-            .gap(px(14.))
-            .p(px(16.))
             .bg(c.surface_dialog)
             .border_1()
             .border_color(c.border_strong)
-            .rounded(theme.metrics.radius_card)
+            .rounded(theme.metrics.radius_xl)
             .shadow(theme.overlay_shadow())
             .text_size(theme.metrics.text_md)
             .text_color(c.text)
             .children(header)
             .when(!self.children.is_empty(), |this| {
-                this.child(div().flex_1().min_h_0().children(self.children))
+                this.child(
+                    div()
+                        .flex_1()
+                        .min_h_0()
+                        .px(px(24.))
+                        .pb(px(24.))
+                        .when(!has_header, |this| this.pt(px(24.)))
+                        .children(self.children),
+                )
             })
+            // Actions sit in a muted band, separated by a hairline.
             .when(!self.footer.is_empty(), |this| {
-                this.child(div().flex().justify_end().gap(px(6.)).children(self.footer))
+                this.child(
+                    div()
+                        .flex()
+                        .justify_end()
+                        .gap(px(8.))
+                        .px(px(24.))
+                        .py(px(16.))
+                        .border_t_1()
+                        .border_color(c.border)
+                        .bg(c.hover)
+                        .rounded_b(footer_radius)
+                        .children(self.footer),
+                )
             })
+            .children(close)
             .refine_style(&self.style)
             .focus_trap((self.id.clone(), "trap"), &self.focus);
 

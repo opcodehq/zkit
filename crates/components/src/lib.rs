@@ -16,7 +16,11 @@
 //! ```
 
 pub mod button;
+pub mod chart;
+pub mod dither;
+pub mod dither_widgets;
 pub mod focus;
+pub mod glass;
 pub mod layout;
 pub mod motion;
 pub mod progress;
@@ -24,6 +28,14 @@ pub mod pulse;
 pub mod surface;
 pub mod theme;
 
+pub use chart::{ChartFill, ChartKind, ChartSeries, DitherChart};
+pub use dither::{Dither, DitherSurface, LoaderVariant, Matrix, Palette, Preset};
+pub use dither_widgets::{
+    DitherAvatar, DitherButton, DitherGlobe, DitherImage, DitherLoader, LoaderSize, dither_avatar,
+    dither_card, dither_divider, dither_empty_state, dither_loader, dither_not_found,
+    dither_skeleton,
+};
+pub use glass::GlassSurface;
 /// The foundation layer, for primitives this crate does not restyle.
 pub use gpui_base as base;
 
@@ -31,7 +43,8 @@ pub use button::{Button, ButtonColors, ButtonSize, ButtonVariant, Kbd, format_ke
 pub use focus::{Disclosure, FocusNext, FocusPrevious, Root, focus_next, focus_previous};
 pub use gpui_base::{Align, Placement};
 pub use layout::{
-    Badge, Divider, Panel, Sidebar, SidebarItem, SidebarSection, Toolbar, h_stack, spacer, v_stack,
+    Badge, Card, Divider, Panel, Sidebar, SidebarItem, SidebarSection, Toolbar, h_stack, spacer,
+    v_stack,
 };
 pub use motion::{MotionPolicy, MotionPreference};
 pub use progress::{ProgressBar, PulseLoader, Spinner};

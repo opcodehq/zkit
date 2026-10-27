@@ -18,3 +18,17 @@ https://github.com/zeronsh/zeron at 3b2f78027a2c31622c39c35716da4d6e1af8de15.
 Copyright (c) 2026 Wing. The MIT license and copyright notice are retained in
 crates/components/LICENSE-MIT-SOURCE. Focus traversal also adapts the Apache-2.0
 component source snapshot identified above.
+
+The zkit-dither crate (crates/dither) adapts dithering techniques, blue-noise
+threshold data, example fields, the globe, its world land mask and loaders
+from dithercn (https://github.com/opencoredev/dithercn), Copyright (c) 2026
+Leo and Copyright (c) 2026 Shadcn Labs. The MIT license and copyright notice
+are retained in crates/dither/LICENSE-MIT. Its charts, dithered buttons and
+generative avatars follow the design of dither-kit by ripgrim
+(https://tripwire.sh/dither-kit); they are independent implementations and
+include no dither-kit source. See crates/dither/NOTICE for details.
+
+The website (website/) uses the zkit-dither engine above, Lucide icons
+(https://lucide.dev, ISC license, via the lucide npm package), a Natural Earth
+land mask (public domain) and a NASA photograph (public domain; see
+website/public/media/CREDITS.md).

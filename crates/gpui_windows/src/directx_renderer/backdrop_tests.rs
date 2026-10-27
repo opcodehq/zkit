@@ -100,6 +100,7 @@ fn quad(order: u32, rect: Bounds<ScaledPixels>, color: Hsla) -> Quad {
 
 fn blur(order: u32) -> BackdropBlur {
     BackdropBlur {
+        native_material: 0,
         order,
         blur_radius: ScaledPixels(3.),
         bounds: bounds(8., 8., 48., 48.),
@@ -362,6 +363,7 @@ fn warp_nested_backdrops_match_sequential_reference() -> Result<()> {
     let original = pixels(&renderer)?;
     let parent = blur(1);
     let child = BackdropBlur {
+        native_material: 0,
         order: 3,
         bounds: bounds(16., 16., 32., 32.),
         content_mask: ContentMask {
@@ -467,6 +469,7 @@ fn warp_backdrop_downsampling_and_large_kernel() -> Result<()> {
             );
         }
         let blur = BackdropBlur {
+            native_material: 0,
             blur_radius: ScaledPixels(sigma),
             bounds: bounds(0., 0., 65., 67.),
             content_mask: ContentMask {
@@ -555,6 +558,7 @@ fn warp_backdrop_clipped_and_blur_only_frames() -> Result<()> {
     let (mut renderer, _window) = warp_renderer()?;
     let mut scene = Scene::default();
     scene.backdrop_blurs = vec![BackdropBlur {
+        native_material: 0,
         bounds: bounds(-100., -100., 8., 8.),
         ..blur(0)
     }];
@@ -565,6 +569,7 @@ fn warp_backdrop_clipped_and_blur_only_frames() -> Result<()> {
     );
     for sigma in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
         scene.backdrop_blurs = vec![BackdropBlur {
+            native_material: 0,
             blur_radius: ScaledPixels(sigma),
             ..blur(0)
         }];
@@ -621,6 +626,7 @@ fn warp_backdrop_reuses_cropped_snapshot_at_window_edges() -> Result<()> {
         bounds(80., 60., 8., 9.),
     ] {
         let region = BackdropBlur {
+            native_material: 0,
             bounds: rect,
             content_mask: ContentMask {
                 bounds: bounds(0., 0., 193., 131.),
@@ -886,6 +892,7 @@ fn warp_animated_nested_blur_matches_fresh_resources() -> Result<()> {
             }
             let offset = frame as f32 * 7.25;
             let parent = BackdropBlur {
+                native_material: 0,
                 bounds: bounds(offset - 12., 4.25, 100., 80.),
                 content_mask: ContentMask { bounds: viewport },
                 blur_radius: ScaledPixels(if frame % 3 == 0 { 16. } else { 3. }),
@@ -897,6 +904,7 @@ fn warp_animated_nested_blur_matches_fresh_resources() -> Result<()> {
             scene.backdrop_blurs = vec![
                 parent,
                 BackdropBlur {
+                    native_material: 0,
                     bounds: bounds(offset + 9.5, 21.25, 41.5, 39.5),
                     content_mask: ContentMask {
                         bounds: parent.bounds.intersect(&viewport),
@@ -938,6 +946,7 @@ fn warp_large_blur_removes_fine_stripes() -> Result<()> {
                 scene.quads.push(stripe);
             }
             scene.backdrop_blurs.push(BackdropBlur {
+                native_material: 0,
                 bounds: bounds(0., 0., 256., 256.),
                 content_mask: ContentMask {
                     bounds: bounds(0., 0., 256., 256.),
@@ -982,6 +991,7 @@ fn warp_invalid_geometry_allocates_nothing_and_idle_cache_expires() -> Result<()
         }
     }
     scene.backdrop_blurs = vec![BackdropBlur {
+        native_material: 0,
         bounds: bounds(f32::MAX, 0., f32::MAX, 10.),
         ..blur(0)
     }];

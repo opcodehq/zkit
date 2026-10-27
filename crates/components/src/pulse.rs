@@ -96,6 +96,19 @@ pub fn phase(spec: &MotionSpec, view: EntityId, rate: Rate, cx: &mut App) -> f32
     clock_phase(spec, cx)
 }
 
+/// Elapsed seconds for ambient surfaces, sharing the leased animation clock.
+/// Reduced motion returns a still timestamp and schedules no work.
+pub fn seconds(view: EntityId, rate: Rate, cx: &mut App) -> f32 {
+    if cx.reduce_motion() {
+        return 0.;
+    }
+    schedule(view, rate.stride(), cx);
+    cx.default_global::<PulseClock>()
+        .epoch
+        .elapsed()
+        .as_secs_f32()
+}
+
 fn clock_phase(spec: &MotionSpec, cx: &mut App) -> f32 {
     let clock = cx.default_global::<PulseClock>();
     (clock.epoch.elapsed().as_secs_f32() / spec.total().as_secs_f32()).fract()
