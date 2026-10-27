@@ -5,13 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "npm run build:engine && vite build",
+    "build": "npm run build:engine && vite build && node scripts/build-markdown.mjs",
     "build:engine": "bash scripts/build-engine.sh",
     "preview": "vite preview --host 0.0.0.0",
     "predev": "npm run build:engine",
     "deploy": "npm run build && wrangler deploy"
   },
   "devDependencies": {
+    "linkedom": "^0.18.14",
     "vite": "^7.2.2",
     "wrangler": "^4.153.0"
   },

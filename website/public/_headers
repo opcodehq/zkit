@@ -1,2 +1,13 @@
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+
+# The docs as Markdown, for agents and LLM tools.
+/docs/*
+  Content-Type: text/markdown; charset=utf-8
+  Access-Control-Allow-Origin: *
+/llms.txt
+  Content-Type: text/plain; charset=utf-8
+  Access-Control-Allow-Origin: *
+/llms-full.txt
+  Content-Type: text/plain; charset=utf-8
+  Access-Control-Allow-Origin: *

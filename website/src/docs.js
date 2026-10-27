@@ -1284,6 +1284,8 @@ function sidebar(route) {
 function render() {
   const raw = location.hash.replace(/^#\/?/, "") || "introduction";
   const [route, anchor] = raw.split("#");
+  // `#/installation.md` (or .mdx) asks for the page as Markdown.
+  if (/\.mdx?$/.test(route)) return location.replace(`/docs/${route}`);
   const def = PAGES[route] ?? PAGES.introduction;
   const meta = TITLES.get(def.route) ?? { title: def.title, group: def.group };
   for (const el of $$("#doc .dither-layer")) el.__surface?.destroy();
@@ -1291,7 +1293,8 @@ function render() {
   const prev = ORDER[at - 1];
   const next = ORDER[at + 1];
   const doc = $("#doc");
-  doc.innerHTML = `<div class="doc-head"><div class="doc-crumb">${def.crumb ?? meta.group}</div><h1>${meta.title}</h1><p class="doc-description">${def.description}</p></div>
+  doc.innerHTML = `<div class="doc-head"><div class="doc-crumb">${def.crumb ?? meta.group}</div><h1>${meta.title}</h1><p class="doc-description">${def.description}</p>
+  <div class="doc-actions">${button("Copy Markdown", { size: "sm", leading: icon.copy, attrs: "data-copy-markdown" })}<a class="z-button ghost sm" href="/docs/${def.route}.md">${icon.fileCode}View as Markdown</a></div></div>
   <div class="prose">${def.html()}</div>
   <nav class="doc-pager" aria-label="Pages">${prev ? `<a href="#/${prev}"><small>Previous</small><span>${TITLES.get(prev).title}</span></a>` : ""}${next ? `<a class="next" href="#/${next}"><small>Next</small><span>${TITLES.get(next).title}</span></a>` : ""}</nav>`;
   $(".docs-sidebar").innerHTML = sidebar(def.route);
@@ -1301,6 +1304,11 @@ function render() {
   document.title = `${meta.title} · zkit`;
   hydrate(doc);
   wirePreviews(doc);
+  $("[data-copy-markdown]", doc).addEventListener("click", () =>
+    fetch(`/docs/${def.route}.md`)
+      .then((r) => (r.ok ? r.text() : Promise.reject()))
+      .then((md) => copyText(md, "Markdown copied."), () => toast("Markdown is unavailable on this server.")),
+  );
   def.mount?.(doc);
   if (anchor) document.getElementById(anchor)?.scrollIntoView();
   else window.scrollTo(0, 0);
@@ -1319,13 +1327,20 @@ document.addEventListener("click", (e) => {
   }
 });
 
+/** Every page, including one per engine field. The engine must be initialised. */
+export function allPages() {
+  for (const f of loadFields()) PAGES[`dither-fields/${f.slug}`] = fieldPage(f);
+  return PAGES;
+}
+
 async function boot() {
   header();
   footer();
   await ready();
-  for (const f of loadFields()) PAGES[`dither-fields/${f.slug}`] = fieldPage(f);
+  allPages();
   setSearchExtras(() => FIELDS.map((f) => ({ group: "Dither fields", label: f.label, href: `/docs.html#/dither-fields/${f.slug}` })));
   window.addEventListener("hashchange", render);
   render();
 }
-boot();
+// The Markdown build (scripts/build-markdown.mjs) imports this module on the server.
+if (!import.meta.env.SSR) boot();

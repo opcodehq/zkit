@@ -20,6 +20,17 @@ Deploy `dist/` to any static host. The development and preview server accept wor
 
 See [the dither guide](../docs/dither.md) for the native API, engine details, implementation coverage and limitations.
 
+## Markdown for agents
+
+`npm run build` also converts every docs page to Markdown
+(`scripts/build-markdown.mjs`), from the same templates the site renders:
+
+- `/docs/<page>.md` and `/docs/<page>.mdx`, for example `/docs/installation.md`
+- `/llms.txt`, an index of every page, and `/llms-full.txt`, all pages in one file
+
+Hash links such as `/docs#/installation.mdx` redirect to the Markdown file, and
+each page has Copy Markdown and View as Markdown buttons.
+
 ## Deploy
 
 The site is served at https://zkit.opcodehq.com by Cloudflare Workers as static

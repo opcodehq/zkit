@@ -5,12 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Documentation for zkit: components, motion and the dither engine." />
     <title>Docs · zkit</title>
+    <link rel="alternate" type="text/markdown" href="/llms.txt" title="Docs as Markdown" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
   <body class="docs">
     <div class="docs-layout">
       <aside class="docs-sidebar" aria-label="Docs navigation"></aside>
-      <main class="docs-main" id="doc"></main>
+      <main class="docs-main" id="doc">
+        <!-- Replaced by the docs app. Agents and tools that do not run scripts read this. -->
+        <h1>zkit docs</h1>
+        <p>These docs are also published as Markdown for agents and LLM tools:</p>
+        <ul>
+          <li><a href="/llms.txt">/llms.txt</a>: an index of every page</li>
+          <li><a href="/llms-full.txt">/llms-full.txt</a>: every page in one file</li>
+          <li><code>/docs/&lt;page&gt;.md</code> (or <code>.mdx</code>) for each page, for example <a href="/docs/installation.md">/docs/installation.md</a></li>
+        </ul>
+      </main>
       <nav class="docs-toc" aria-label="On this page"></nav>
     </div>
     <script type="module" src="/src/docs.js"></script>

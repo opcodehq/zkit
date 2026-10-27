@@ -1067,6 +1067,12 @@ canvas.dither {
   color: var(--text-muted);
   font-size: 16px;
 }
+.doc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
 .prose {
   margin-top: 28px;
 }
