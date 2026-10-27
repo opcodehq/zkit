@@ -20,6 +20,14 @@ Deploy `dist/` to any static host. The development and preview server accept wor
 
 See [the dither guide](../docs/dither.md) for the native API, engine details, implementation coverage and limitations.
 
+## Deploy
+
+The site is served at https://zkit.opcodehq.com by Cloudflare Workers as static
+assets (`wrangler.jsonc`).
+`npm run deploy` builds the engine and the site, then uploads `dist/`. Log in
+once with `npx wrangler login`, or set `CLOUDFLARE_API_TOKEN` (and
+`CLOUDFLARE_ACCOUNT_ID`) in CI.
+
 ## Credits
 
 The dither engine adapts [dithercn](https://dithercn.dev) (MIT; notice in `crates/dither/LICENSE-MIT`). Charts, dithered buttons and avatars follow the design of [dither-kit](https://tripwire.sh/dither-kit) by ripgrim. Icons are [Lucide](https://lucide.dev) (ISC). See `NOTICE`, `crates/dither/NOTICE` and the site's Credits page.
