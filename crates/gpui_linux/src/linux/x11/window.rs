@@ -62,8 +62,8 @@ x11rb::atom_manager! {
         _NET_WM_NAME,
         _NET_WM_ICON,
         _NET_WM_STATE,
-        _NET_WM_STATE_MAXIMIZKIT_VERT,
-        _NET_WM_STATE_MAXIMIZKIT_HORZ,
+        _NET_WM_STATE_MAXIMIZED_VERT,
+        _NET_WM_STATE_MAXIMIZED_HORZ,
         _NET_WM_STATE_FULLSCREEN,
         _NET_WM_STATE_HIDDEN,
         _NET_WM_STATE_FOCUSED,
@@ -1091,9 +1091,9 @@ impl X11WindowStatePtr {
                 state.active = true;
             } else if atom == state.atoms._NET_WM_STATE_FULLSCREEN {
                 state.fullscreen = true;
-            } else if atom == state.atoms._NET_WM_STATE_MAXIMIZKIT_VERT {
+            } else if atom == state.atoms._NET_WM_STATE_MAXIMIZED_VERT {
                 state.maximized_vertical = true;
-            } else if atom == state.atoms._NET_WM_STATE_MAXIMIZKIT_HORZ {
+            } else if atom == state.atoms._NET_WM_STATE_MAXIMIZED_HORZ {
                 state.maximized_horizontal = true;
             } else if atom == state.atoms._NET_WM_STATE_HIDDEN {
                 state.hidden = true;
@@ -1636,8 +1636,8 @@ impl PlatformWindow for X11Window {
         self.set_wm_hints(
             || "X11 SendEvent to maximize a window failed.",
             WmHintPropertyState::Toggle,
-            state.atoms._NET_WM_STATE_MAXIMIZKIT_VERT,
-            state.atoms._NET_WM_STATE_MAXIMIZKIT_HORZ,
+            state.atoms._NET_WM_STATE_MAXIMIZED_VERT,
+            state.atoms._NET_WM_STATE_MAXIMIZED_HORZ,
         )
         .log_err();
     }
